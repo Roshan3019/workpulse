@@ -11,7 +11,7 @@ import type {
   Profile,
   Task,
 } from "../types";
-import type { DataStore, TaskFilters } from "./types";
+import type { DataStore, InviteLookup, TaskFilters } from "./types";
 
 /* ----------------------------- row mappers ------------------------------ */
 type Row = Record<string, any>;
@@ -51,6 +51,8 @@ const taskFromRow = (r: Row): Task => ({
   status: r.status,
   priority: r.priority,
   deadline: r.deadline,
+  startDate: r.start_date ?? null,
+  dueTime: r.due_time ? String(r.due_time).slice(0, 5) : null,
   createdAt: r.created_at,
 });
 
@@ -185,6 +187,8 @@ export class SupabaseStore implements DataStore {
         status: input.status ?? "pending",
         priority: input.priority ?? "medium",
         deadline: input.deadline ?? null,
+        start_date: input.startDate ?? null,
+        due_time: input.dueTime ?? null,
         created_by: actorId,
       })
       .select("*")
@@ -205,6 +209,8 @@ export class SupabaseStore implements DataStore {
     if (patch.status !== undefined) update.status = patch.status;
     if (patch.priority !== undefined) update.priority = patch.priority;
     if (patch.deadline !== undefined) update.deadline = patch.deadline;
+    if (patch.startDate !== undefined) update.start_date = patch.startDate;
+    if (patch.dueTime !== undefined) update.due_time = patch.dueTime;
     const { error } = await sb.from("tasks").update(update).eq("id", taskId).eq("org_id", orgId);
     fail(error, "update task");
   }
@@ -269,6 +275,30 @@ export class SupabaseStore implements DataStore {
       .order("created_at", { ascending: false });
     fail(error, "load invites");
     return ((data ?? []) as Row[]).map(inviteFromRow);
+  }
+
+  /**
+   * Resolve an invite link before the visitor has an account.
+   *
+   * `invites` is RLS-protected (admins only), so this goes through the
+   * `invite_preview` security-definer RPC, which returns only the fields the
+   * invite page needs — never the token list, invited_by, or audit trail.
+   */
+  async getInviteByToken(token: string): Promise<InviteLookup | null> {
+    const sb = await this.sb();
+    const { data, error } = await sb.rpc("invite_preview", { invite_token: token });
+    // An unknown/expired token is a normal outcome, not an error worth a 500.
+    if (error) return null;
+    const row = (Array.isArray(data) ? data[0] : data) as Row | null | undefined;
+    if (!row) return null;
+    return {
+      orgId: row.org_id,
+      orgName: row.org_name ?? null,
+      email: row.email ?? null,
+      role: row.role as OrgRole,
+      expiresAt: row.expires_at,
+      acceptedAt: row.accepted_at ?? null,
+    };
   }
 
   async createInvite(orgId: string, email: string, role: OrgRole): Promise<Invite> {

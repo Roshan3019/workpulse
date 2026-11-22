@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { AvailabilityMap, Invite, Member, Membership, OrgRole, Organization, PlanTier, Profile, Task } from "../types";
 import { PLANS } from "../types";
 import { seedMemory, type MemoryDatabase } from "./types";
-import type { DataStore, TaskFilters } from "./types";
+import type { DataStore, InviteLookup, TaskFilters } from "./types";
 
 /**
  * In-memory store used by demo mode. Kept on globalThis so Next's dev
@@ -160,6 +160,19 @@ export class MemoryStore implements DataStore {
     return db()
       .invites.filter((i) => i.orgId === orgId && !i.acceptedAt)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getInviteByToken(token: string): Promise<InviteLookup | null> {
+    const inv = db().invites.find((i) => i.token === token);
+    if (!inv || inv.acceptedAt || inv.expiresAt < new Date().toISOString()) return null;
+    return {
+      orgId: inv.orgId,
+      orgName: db().org.id === inv.orgId ? db().org.name : null,
+      email: inv.email,
+      role: inv.role,
+      expiresAt: inv.expiresAt,
+      acceptedAt: inv.acceptedAt,
+    };
   }
 
   async createInvite(orgId: string, email: string, role: OrgRole): Promise<Invite> {

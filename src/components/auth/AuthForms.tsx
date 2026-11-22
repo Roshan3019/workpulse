@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState } from "react";
 import { Alert } from "@/components/ui/Modal";
-import { signInWithPassword, signUpWithPassword, getOAuthUrl, type ActionState } from "@/lib/actions/auth";
+import { signInWithPassword, signUpWithPassword, type ActionState } from "@/lib/actions/auth";
 
 const initial: ActionState = {};
 
@@ -18,34 +18,22 @@ function GoogleIcon() {
   );
 }
 
+/**
+ * Plain link, not a Server Action: the OAuth route handler sets the PKCE
+ * verifier cookie on the same redirect response, so the browser never leaves
+ * before the cookie exists. Also works with JS disabled and is prefetchable.
+ */
 export function GoogleButton({ label = "Continue with Google", next = "/app" }: { label?: string; next?: string }) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const href = `/auth/login?next=${encodeURIComponent(next)}`;
 
   return (
-    <div>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            setError(null);
-            const res = await getOAuthUrl(next);
-            if (res.error) setError(res.error);
-            else if (res.url) window.location.href = res.url;
-          })
-        }
-        className="flex w-full items-center justify-center gap-3 rounded-full border border-line-2 bg-white px-4 py-3.5 text-[14.5px] font-semibold transition hover:border-[#c7ccdf] hover:shadow-[0_1px_3px_rgba(16,24,40,.08)] disabled:opacity-60"
-      >
-        <GoogleIcon />
-        {pending ? "Redirecting…" : label}
-      </button>
-      {error ? (
-        <div className="mt-3">
-          <Alert tone="error">{error}</Alert>
-        </div>
-      ) : null}
-    </div>
+    <a
+      href={href}
+      className="flex w-full items-center justify-center gap-3 rounded-full border border-line-2 bg-white px-4 py-3.5 text-[14.5px] font-semibold transition hover:border-[#c7ccdf] hover:shadow-[0_1px_3px_rgba(16,24,40,.08)]"
+    >
+      <GoogleIcon />
+      {label}
+    </a>
   );
 }
 
@@ -83,7 +71,7 @@ export function LoginForm({ next = "/app" }: { next?: string }) {
         <span className="h-px flex-1 bg-line" />
       </div>
 
-      <GoogleButton />
+      <GoogleButton next={next} />
 
       <p className="text-center text-[13px] text-muted">
         New here?{" "}
@@ -95,19 +83,28 @@ export function LoginForm({ next = "/app" }: { next?: string }) {
   );
 }
 
-export function SignupForm() {
+export function SignupForm({ next = "/app", email = "" }: { next?: string; email?: string }) {
   const [state, action, pending] = useActionState(signUpWithPassword, initial);
 
   return (
     <div className="space-y-4">
       <form action={action} className="space-y-3.5">
+        <input type="hidden" name="next" value={next} />
         <div className="field">
           <label htmlFor="fullName">Your name</label>
           <input id="fullName" name="fullName" required autoComplete="name" placeholder="Roshna Patel" />
         </div>
         <div className="field">
           <label htmlFor="email">Work email</label>
-          <input id="email" name="email" type="email" required autoComplete="email" placeholder="you@studio.com" />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            defaultValue={email}
+            placeholder="you@studio.com"
+          />
         </div>
         <div className="field">
           <label htmlFor="password">Password</label>
@@ -134,7 +131,7 @@ export function SignupForm() {
         <span className="h-px flex-1 bg-line" />
       </div>
 
-      <GoogleButton label="Sign up with Google" next="/onboarding" />
+      <GoogleButton label="Sign up with Google" next={next === "/app" ? "/onboarding" : next} />
 
       <p className="text-center text-[13px] text-muted">
         Already have an account?{" "}

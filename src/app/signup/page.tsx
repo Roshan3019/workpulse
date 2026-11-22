@@ -8,9 +8,15 @@ import { getAuthContext } from "@/lib/session";
 
 export const metadata = { title: "Create your workspace" };
 
-export default async function SignupPage() {
+type SignupSearchParams = Promise<{ next?: string; email?: string }>;
+
+export default async function SignupPage({ searchParams }: { searchParams: SignupSearchParams }) {
+  const sp = await searchParams;
   const ctx = await getAuthContext();
-  if (ctx) redirect(ctx.membership ? "/app" : "/onboarding");
+
+  // Invited visitors arrive with ?next=/invite/<token>; always send them back there.
+  const next = sp.next?.startsWith("/") && !sp.next.startsWith("//") ? sp.next : "/app";
+  if (ctx) redirect(next !== "/app" ? next : ctx.membership ? "/app" : "/onboarding");
 
   return (
     <div className="min-h-screen">
@@ -66,7 +72,7 @@ export default async function SignupPage() {
               </p>
             </>
           ) : (
-            <SignupForm />
+            <SignupForm next={next} email={sp.email ?? ""} />
           )}
         </div>
       </main>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/AuthForms";
+import { Alert } from "@/components/ui/Modal";
 import { Avatar, Badge, Logo } from "@/components/ui";
 import { demoSignIn } from "@/lib/actions/auth";
 import { memoryStore } from "@/lib/data";
@@ -10,9 +11,15 @@ import { ROLE_LABEL, ROLE_TONE } from "@/lib/types";
 
 export const metadata = { title: "Sign in" };
 
-export default async function LoginPage() {
+type LoginSearchParams = Promise<{ next?: string; error?: string }>;
+
+export default async function LoginPage({ searchParams }: { searchParams: LoginSearchParams }) {
+  const sp = await searchParams;
   const ctx = await getAuthContext();
   if (ctx) redirect(ctx.membership ? "/app" : "/onboarding");
+
+  // Only same-site relative paths, so ?next= can't be used as an open redirect.
+  const next = sp.next?.startsWith("/") && !sp.next.startsWith("//") ? sp.next : "/app";
 
   const demoUsers = env.demoMode ? await memoryStore.listDemoUsers() : [];
 
@@ -54,6 +61,12 @@ export default async function LoginPage() {
             Use your work account. Team admins land on the workload dashboard, freelancers get their own view.
           </p>
 
+          {sp.error ? (
+            <div className="mb-4">
+              <Alert tone="error">{sp.error}</Alert>
+            </div>
+          ) : null}
+
           {env.demoMode ? (
             <>
               <div className="mb-4 rounded-xl border border-brand-line bg-brand-soft px-3.5 py-3 text-[12.5px] leading-relaxed font-semibold text-brand-dark">
@@ -85,7 +98,7 @@ export default async function LoginPage() {
               </p>
             </>
           ) : (
-            <LoginForm />
+            <LoginForm next={next} />
           )}
         </div>
       </main>

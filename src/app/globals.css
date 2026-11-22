@@ -137,30 +137,42 @@
 
 /* availability grid cells ------------------------------------------------- */
 .cell {
-  height: 34px;
-  margin: 3px;
-  border-radius: 9px;
+  height: 38px;
+  border-radius: 8px;
   background: #eef1f8;
-  border: 1px solid #e3e6f2;
-  transition: background 0.1s;
+  transition:
+    background 0.12s ease,
+    transform 0.12s ease;
   cursor: pointer;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cell:hover {
+  background: #e2e7f2;
 }
 .cell[data-free="true"] {
   background: var(--color-ok);
-  border-color: var(--color-ok-dark);
+}
+.cell[data-free="true"]:hover {
+  background: var(--color-ok-dark);
+}
+/* Today's row gets a subtle tint instead of an outline on every cell. */
+.cell[data-selected="true"] {
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.22);
 }
 .cell[data-readonly="true"] {
   cursor: default;
 }
-.cell[data-selected="true"] {
-  outline: 2px solid var(--color-brand);
-  outline-offset: -2px;
+.cell[data-readonly="true"]:hover {
+  background: #eef1f8;
+}
+.cell[data-readonly="true"][data-free="true"]:hover {
+  background: var(--color-ok);
 }
 @media (max-width: 640px) {
   .cell {
-    height: 30px;
-    margin: 2px;
+    height: 34px;
     border-radius: 7px;
   }
 }

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui";
 import { updateProgressAction } from "@/lib/actions/tasks";
-import { shortDate, todayISO } from "@/lib/dates";
+import { countdownLabel, dueDateOf, dueLabel } from "@/lib/dates";
 import { STATUS_LABEL, type Task, type TaskStatus } from "@/lib/types";
 
 const STATUS_TONE = {
@@ -20,7 +20,8 @@ export function MemberTaskCard({ task }: { task: Task }) {
   const [status, setStatus] = useState<TaskStatus>(task.status);
   const [saved, setSaved] = useState(false);
 
-  const overdue = task.deadline && task.deadline < todayISO() && status !== "done";
+  const done = status === "done";
+  const overdue = Boolean(task.deadline) && !done && dueDateOf(task.deadline!, task.dueTime).getTime() < Date.now();
 
   function persist(nextProgress: number, nextStatus: TaskStatus) {
     startTransition(async () => {
@@ -44,9 +45,9 @@ export function MemberTaskCard({ task }: { task: Task }) {
           {task.client || "No client"}
         </span>
         {task.deadline ? (
-          <Badge tone={overdue ? "red" : "grey"}>
-            📅 {shortDate(task.deadline)}
-            {overdue ? " · overdue" : ""}
+          <Badge tone={done ? "green" : overdue ? "red" : "grey"}>
+            📅 {dueLabel(task.deadline, task.dueTime)}
+            {!done ? ` · ${countdownLabel(task.deadline, task.dueTime)}` : ""}
           </Badge>
         ) : null}
         <span className="ml-auto flex items-center gap-2">

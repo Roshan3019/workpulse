@@ -30,6 +30,9 @@ interaction works — including drag-to-paint availability and role changes.
 1. Create a project at [supabase.com](https://supabase.com) (pick the region closest to your users).
 2. **SQL Editor → New query** → paste [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) → **Run**.
    This creates the tables, helper functions, triggers and **Row Level Security policies**.
+   > Already applied `0001` before the invite-token fix? Also run
+   > [`0002_fix_invite_token.sql`](supabase/migrations/0002_fix_invite_token.sql) — without it,
+   > creating an invite fails with `function gen_random_bytes(integer) does not exist`.
 3. Copy your keys from **Project Settings → API**:
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -41,8 +44,17 @@ interaction works — including drag-to-paint availability and role changes.
 2. **Authentication → Providers → Google**: enable and paste a Google OAuth **Client ID + Secret**
    (see 2.3).
 3. **Authentication → URL Configuration**
-   - Site URL: `https://yourdomain.com`
-   - Redirect URLs: `https://yourdomain.com/auth/callback`, `http://localhost:8080/auth/callback`
+   - **Site URL: `http://localhost:8080` while developing locally**, `https://yourdomain.com` in production.
+     If this is wrong, Supabase silently redirects the user to the *Site URL* instead of your
+     `/auth/callback` — Google sign-in appears to succeed and then dumps you back on the login
+     page. The app now rescues a stray `?code=` on any path, but set this correctly anyway.
+   - Redirect URLs (add every origin you actually use, including both localhost spellings):
+     ```
+     http://localhost:8080/auth/callback
+     http://127.0.0.1:8080/auth/callback
+     https://yourdomain.com/auth/callback
+     ```
+   - On Vercel previews, also add `https://*-<your-team>.vercel.app/auth/callback`.
 
 ### 2.3 Google OAuth
 1. [Google Cloud Console](https://console.cloud.google.com) → create/select a project.
@@ -52,6 +64,11 @@ interaction works — including drag-to-paint availability and role changes.
    - Authorized JavaScript origins: `https://yourdomain.com`, `http://localhost:8080`
    - Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`
 4. Paste the Client ID/Secret into Supabase's Google provider.
+
+> **Native dev note:** `npm run dev` binds `0.0.0.0`. Always open the **same host** you put in
+> Supabase (e.g. `localhost:8080`), never mix `localhost` and `127.0.0.1` — they are different
+> cookie origins, so the session and the PKCE verifier end up on different hosts and the login
+> bounces. Set `NEXT_PUBLIC_SITE_URL` to the exact URL you browse to.
 
 ### 2.4 Configure the app
 ```bash
@@ -97,7 +114,8 @@ src/
 │   ├── login/ signup/           auth (Google + email/password)
 │   ├── onboarding/              create the first organization
 │   ├── invite/[token]/          accept an invite link
-│   ├── auth/callback/           Supabase OAuth code exchange
+│   ├── auth/login/              OAuth start (sets PKCE cookie on the redirect)
+│   ├── auth/callback/           Supabase OAuth code exchange (+ email OTP links)
 │   └── app/                     authenticated product
 │       ├── layout.tsx           shell: nav, plan meter, user menu
 │       ├── page.tsx             admin dashboard (workload + overall time slots)
@@ -116,8 +134,11 @@ src/
 │   ├── dates.ts                 date/hour helpers, range formatting
 │   ├── validation.ts            zod schemas for every mutation
 │   └── types.ts                 domain types + plan definitions
-├── proxy.ts                     middleware: session refresh + /app route guard
+├── middleware.ts                session refresh + /app route guard + auth-code rescue
 supabase/migrations/0001_init.sql   schema, triggers, RLS, RPCs
+supabase/migrations/0002_fix_invite_token.sql   invite-token fix (pgcrypto-free)
+tests/sql/invite-token.test.cjs     npm run test:sql  — invite RPC on a real Postgres
+tests/auth-flow.test.cjs            npm run test:auth — OAuth/PKCE round-trip vs a mock Supabase
 docs/DEPLOYMENT.md                  deploy + launch + security checklist
 ```
 

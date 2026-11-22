@@ -6,7 +6,11 @@
     "dev": "next dev -H 0.0.0.0 -p 8080",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 8080",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:sql": "node tests/sql/invite-token.test.cjs",
+    "test:auth": "node tests/auth-flow.test.cjs",
+    "test": "npm run test:sql && npm run test:invite && npm run test:auth",
+    "test:invite": "node tests/sql/invite-link.test.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -17,6 +21,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.3.16",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.7",

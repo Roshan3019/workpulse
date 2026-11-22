@@ -41,6 +41,12 @@ export const taskSchema = z.object({
   status: z.enum(["pending", "in_progress", "done"]).default("pending"),
   priority: z.enum(["low", "medium", "high"]).default("medium"),
   deadline: isoDate.nullable().optional(),
+  startDate: isoDate.nullable().optional(),
+  dueTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Pick a valid time")
+    .nullable()
+    .optional(),
 });
 
 export const memberProgressSchema = z.object({

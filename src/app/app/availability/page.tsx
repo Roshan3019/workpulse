@@ -37,20 +37,16 @@ export default async function AvailabilityPage({
       <div className="space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="h1">Team availability</h1>
-            <p className="lede">
-              View-only. Freelancers set their own free hours — admins don&apos;t keep an availability calendar.
-            </p>
+            <h1 className="h1">Who&apos;s free when</h1>
+            <p className="lede">Green means free. Pick a person to see their week at a glance.</p>
           </div>
           {freelancers.length > 1 ? <MemberPicker members={freelancers} selected={selectedId} /> : null}
         </div>
 
-        <div className="card flex flex-wrap items-start gap-2.5 border-brand-line bg-brand-soft p-4 text-[13px] leading-relaxed text-brand-dark">
-          <span className="text-base">👁</span>
+        <div className="flex items-start gap-2 rounded-xl border border-line bg-white px-3.5 py-2.5 text-[12.5px] leading-relaxed text-muted">
+          <span>👁</span>
           <span>
-            <b>View only.</b> You can see {selected ? selected.profile.fullName ?? "this teammate" : "a teammate"}
-            &apos;s free slots for the next 14 days, but you can&apos;t edit them. They update this grid from their own
-            Availability page — and the database blocks admins from writing availability rows at all.
+            <b className="text-ink-2">View only.</b> Teammates keep their own calendar up to date; admins read it here.
           </span>
         </div>
 
@@ -101,10 +97,9 @@ export default async function AvailabilityPage({
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="h1">My free hours</h1>
+          <h1 className="h1">When are you free?</h1>
           <p className="lede">
-            Pick a date, then <b>drag</b> across cells to paint free (green) or busy. Free next 7 days:{" "}
-            <b>{freeNext7}h</b>
+            Paint the hours you&apos;re available this week. Your admin sees this instantly.
           </p>
         </div>
         <Badge tone="green">{session.membership.capacity}h weekly capacity</Badge>

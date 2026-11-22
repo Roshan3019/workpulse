@@ -55,7 +55,12 @@ export interface Task {
   progress: number;
   status: TaskStatus;
   priority: TaskPriority;
-  deadline: string | null; // YYYY-MM-DD
+  /** Due date, YYYY-MM-DD (kept for compatibility with older rows). */
+  deadline: string | null;
+  /** Optional day work starts, YYYY-MM-DD. */
+  startDate: string | null;
+  /** Optional exact due time, HH:MM (24h). Together with `deadline` this is the due minute. */
+  dueTime: string | null;
   createdAt: string;
 }
 

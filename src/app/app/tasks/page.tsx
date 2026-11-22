@@ -3,7 +3,7 @@ import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { DeleteTaskButton } from "@/components/tasks/DeleteTaskButton";
 import { Avatar, Badge, EmptyState, ProgressBar } from "@/components/ui";
 import { getStore } from "@/lib/data";
-import { shortDate, todayISO } from "@/lib/dates";
+import { countdownLabel, dueDateOf, dueLabel } from "@/lib/dates";
 import { requireSession } from "@/lib/session";
 import { STATUS_LABEL, isAdminRole, type TaskPriority } from "@/lib/types";
 
@@ -97,7 +97,10 @@ export default async function TasksPage({
         <div className="space-y-3">
           {filtered.map((task) => {
             const assignee = members.find((m) => m.userId === task.assigneeId);
-            const overdue = task.deadline && task.deadline < todayISO() && task.status !== "done";
+            const overdue =
+              Boolean(task.deadline) &&
+              task.status !== "done" &&
+              dueDateOf(task.deadline!, task.dueTime).getTime() < Date.now();
             return (
               <article key={task.id} className="card grid gap-3 p-4 sm:p-5 lg:grid-cols-[1.5fr_1fr_1fr_auto] lg:items-center">
                 <div className="min-w-0">
@@ -138,9 +141,9 @@ export default async function TasksPage({
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                   <Badge tone={STATUS_TONE[task.status]}>{STATUS_LABEL[task.status]}</Badge>
                   {task.deadline ? (
-                    <Badge tone={overdue ? "red" : "grey"}>
-                      {shortDate(task.deadline)}
-                      {overdue ? " · late" : ""}
+                    <Badge tone={task.status === "done" ? "green" : overdue ? "red" : "grey"}>
+                      {dueLabel(task.deadline, task.dueTime)}
+                      {task.status !== "done" ? ` · ${countdownLabel(task.deadline, task.dueTime)}` : ""}
                     </Badge>
                   ) : null}
                   <TaskDialog members={members} task={task} variant="icon" />
