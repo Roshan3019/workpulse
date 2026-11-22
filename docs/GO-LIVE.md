@@ -270,11 +270,29 @@ the Supabase project to another region, change this to the matching Vercel regio
 | `us-east-1` Virginia | `iad1` |
 | `eu-west-1` Ireland | `dub1` |
 
-**Check it yourself:** every deployment has a `functions-config-manifest.json`. If the region
-is wrong, each page load makes a dozen round trips between continents — several seconds.
-If it is right, those same trips take milliseconds.
+**How to check whether it actually took effect.** This matters because the region is
+invisible in the UI and a wrong deployment looks exactly like a correct one. Do **not** trust
+the local build output — the build that shipped `iad1` had `bom1` in its local manifest.
 
-`npm run test:perf` fails if the region pin is ever removed.
+Use the Vercel API for the deployment and read two fields:
+
+```bash
+curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
+  https://api.vercel.com/v13/deployments/<deployment-id>?teamId=<team> \
+  | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{
+      const j=JSON.parse(d);console.log("regions:",j.regions,"origin:",j.originCacheRegion)})'
+```
+
+Correct output:
+
+```
+regions: [ 'bom1' ] origin: bom1
+```
+
+If it says `[ 'iad1' ]`, the functions are still in Virginia and everything will feel slow —
+the `vercel.json` change did not reach the deployment. Redeploy and check again.
+
+`npm run test:perf` fails if the region pin is ever removed or set per-route.
 
 ### Other things that keep it fast
 
