@@ -67,7 +67,9 @@ on Vercel, redeploy. In Docker, pass them as build args or bake `.env.production
 ## 3. Security checklist
 
 ### Database (Supabase)
-- [ ] `0001_init.sql` applied; **RLS enabled on every table** (verify in Database → Tables, the lock
+- [ ] `0001_init.sql` applied (plus `0002_fix_invite_token.sql` if `0001` was applied before the
+      invite-token fix — otherwise "Create invite" fails with
+      `function gen_random_bytes(integer) does not exist`); **RLS enabled on every table** (verify in Database → Tables, the lock
       icon should be on for `profiles`, `organizations`, `memberships`, `invites`, `tasks`,
       `availability`, `audit_log`).
 - [ ] Test with two accounts in different orgs: member A cannot read org B's tasks

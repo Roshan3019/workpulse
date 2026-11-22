@@ -30,6 +30,9 @@ interaction works — including drag-to-paint availability and role changes.
 1. Create a project at [supabase.com](https://supabase.com) (pick the region closest to your users).
 2. **SQL Editor → New query** → paste [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) → **Run**.
    This creates the tables, helper functions, triggers and **Row Level Security policies**.
+   > Already applied `0001` before the invite-token fix? Also run
+   > [`0002_fix_invite_token.sql`](supabase/migrations/0002_fix_invite_token.sql) — without it,
+   > creating an invite fails with `function gen_random_bytes(integer) does not exist`.
 3. Copy your keys from **Project Settings → API**:
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -118,6 +121,7 @@ src/
 │   └── types.ts                 domain types + plan definitions
 ├── proxy.ts                     middleware: session refresh + /app route guard
 supabase/migrations/0001_init.sql   schema, triggers, RLS, RPCs
+supabase/migrations/0002_fix_invite_token.sql   invite-token fix (pgcrypto-free)
 docs/DEPLOYMENT.md                  deploy + launch + security checklist
 ```
 

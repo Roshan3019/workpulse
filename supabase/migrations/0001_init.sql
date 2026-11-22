@@ -2,7 +2,10 @@
 -- WorkPulse — Multi-tenant SaaS schema
 -- Supabase / PostgreSQL 15+
 --
--- Run order:  supabase/migrations/0001_init.sql  ->  0002_seed_demo.sql (optional)
+-- Fresh install: this file is the complete, pgcrypto-free schema — run it alone.
+-- Existing projects created before the invite-token fix: also run
+--   supabase/migrations/0002_fix_invite_token.sql
+-- Never run both on a brand-new project (0001 already contains the fix).
 --
 -- Security model
 --  * Every business row carries org_id. RLS scopes all reads/writes to orgs
@@ -13,7 +16,10 @@
 --  * Members may only move progress/status on their own tasks.
 -- ============================================================================
 
-create extension if not exists pgcrypto;
+-- NOTE: no extensions required. Token generation uses gen_random_uuid()
+-- (core since PostgreSQL 13) instead of pgcrypto's gen_random_bytes()/encode(),
+-- which live in the `extensions` schema on Supabase and are invisible when a
+-- function runs with `set search_path = public` (see 0002_fix_invite_token.sql).
 
 -- ---------------------------------------------------------------------------
 -- ENUMS
@@ -85,7 +91,7 @@ create table if not exists public.invites (
   org_id      uuid not null references public.organizations(id) on delete cascade,
   email       text,                                  -- null => shareable link
   role        public.org_role not null default 'member',
-  token       text not null unique default encode(gen_random_bytes(24), 'hex'),
+  token       text not null unique default replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''),
   invited_by  uuid references public.profiles(id) on delete set null,
   expires_at  timestamptz not null default now() + interval '14 days',
   accepted_at timestamptz,
@@ -378,7 +384,7 @@ begin
     nullif(lower(trim(coalesce(invite_email,''))), ''),
     invite_role,
     auth.uid(),
-    encode(gen_random_bytes(24), 'hex')
+    replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '')
   )
   returning token into tok;
 
