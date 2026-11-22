@@ -3,6 +3,7 @@ import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { DeleteTaskButton } from "@/components/tasks/DeleteTaskButton";
 import { Avatar, Badge, EmptyState, ProgressBar } from "@/components/ui";
 import { getStore } from "@/lib/data";
+import { orgMembers } from "@/lib/data/request-cache";
 import { countdownLabel, dueDateOf, dueLabel } from "@/lib/dates";
 import { requireSession } from "@/lib/session";
 import { STATUS_LABEL, isAdminRole, type TaskPriority } from "@/lib/types";
@@ -34,13 +35,26 @@ export default async function TasksPage({
   const store = getStore();
   const orgId = session.organization.id;
 
-  const members = await store.listMembers(orgId);
-  const allTasks = await store.listTasks(orgId);
-  const filtered = await store.listTasks(orgId, {
-    search: params.q,
-    status: params.status,
-    assigneeId: params.assignee && params.assignee !== "all" ? params.assignee : undefined,
-  });
+  /*
+   * Fetch the org's tasks once and filter in memory.
+   *
+   * This page used to run three queries — members, all tasks, and filtered
+   * tasks — and two of them returned the same rows. Org task counts are small
+   * (hundreds), so a single query plus a pure filter is dramatically cheaper
+   * than two more round trips across the network.
+   */
+  const [members, allTasks] = await Promise.all([orgMembers(orgId), store.listTasks(orgId)]);
+  const search = params.q?.trim().toLowerCase();
+  const status = params.status && params.status !== "all" ? params.status : undefined;
+  const assigneeId = params.assignee && params.assignee !== "all" ? params.assignee : undefined;
+  const filtered = allTasks.filter(
+    (t) =>
+      (!assigneeId || t.assigneeId === assigneeId) &&
+      (!status || t.status === status) &&
+      (!search ||
+        t.title.toLowerCase().includes(search) ||
+        (t.client ?? "").toLowerCase().includes(search)),
+  );
 
   return (
     <div className="space-y-5">

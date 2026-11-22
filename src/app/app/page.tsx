@@ -5,6 +5,7 @@ import { WorkloadList } from "@/components/dashboard/WorkloadList";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { EmptyState, Section } from "@/components/ui";
 import { getStore } from "@/lib/data";
+import { orgMembers } from "@/lib/data/request-cache";
 import { countdownLabel, dueDateOf, dueLabel, nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
@@ -24,14 +25,18 @@ export default async function DashboardPage() {
 
   const store = getStore();
   const orgId = session.organization.id;
-  const [members, tasks] = await Promise.all([store.listMembers(orgId), store.listTasks(orgId)]);
+  const [members, tasks, tz] = await Promise.all([
+    orgMembers(orgId),
+    store.listTasks(orgId),
+    getUserTimeZone(),
+  ]);
 
   const freelancers = members.filter((m) => m.role === "member");
   const openTasks = tasks.filter((t) => t.status !== "done");
   const totalHours = openTasks.reduce((sum, t) => sum + Number(t.estHours), 0);
   const doneCount = tasks.filter((t) => t.status === "done").length;
 
-  const dates = nextDatesIn(7, await getUserTimeZone());
+  const dates = nextDatesIn(7, tz);
   const availability = await store.getAvailability(
     orgId,
     freelancers.map((m) => m.userId),

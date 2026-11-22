@@ -16,12 +16,17 @@ export default async function MyTasksPage() {
 
   const store = getStore();
   const orgId = session.organization.id;
-  const tasks = await store.listTasks(orgId, { onlyForUser: session.membership.userId });
+
+  // The task list and the timezone cookie are unrelated, so fetch together.
+  const [tasks, tz] = await Promise.all([
+    store.listTasks(orgId, { onlyForUser: session.membership.userId }),
+    getUserTimeZone(),
+  ]);
 
   const active = tasks.filter((t) => t.status !== "done");
   const done = tasks.filter((t) => t.status === "done");
 
-  const dates = nextDatesIn(7, await getUserTimeZone());
+  const dates = nextDatesIn(7, tz);
   const availability = await store.getAvailability(orgId, [session.membership.userId], dates);
   const freeNext7 = dates.reduce((sum, d) => sum + (availability[session.membership.userId]?.[d]?.length ?? 0), 0);
   const assignedHours = active.reduce((sum, t) => sum + Number(t.estHours), 0);

@@ -2,6 +2,7 @@ import { AvailabilityGrid } from "@/components/availability/AvailabilityGrid";
 import { MemberPicker } from "@/components/availability/MemberPicker";
 import { Avatar, Badge, EmptyState, Section } from "@/components/ui";
 import { getStore } from "@/lib/data";
+import { orgMembers } from "@/lib/data/request-cache";
 import { nextDatesIn, shortDate } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
@@ -26,9 +27,8 @@ export default async function AvailabilityPage({
 
   /* ---------------------------- ADMIN: view only ---------------------------- */
   if (admin) {
-    const members = await store.listMembers(orgId);
+    const [members, params] = await Promise.all([orgMembers(orgId), searchParams]);
     const freelancers = members.filter((m) => m.role === "member");
-    const params = await searchParams;
     const selectedId =
       params.member && freelancers.some((m) => m.userId === params.member)
         ? params.member

@@ -243,6 +243,61 @@ Full security checklist: [`DEPLOYMENT.md`](./DEPLOYMENT.md) §3.
 
 ---
 
+## Performance — why region matters
+
+The single biggest factor in how fast this app feels is **where Vercel runs the server
+functions relative to the Supabase database.** They must be in the same part of the world.
+
+This project pins them in **`vercel.json`** at the repo root:
+
+```json
+{ "$schema": "https://openapi.vercel.sh/vercel.json", "regions": ["bom1"] }
+```
+
+> ⚠️ **Do not use a per-route `export const preferredRegion` in a layout or page.** It looks
+> right, it type-checks, the build succeeds — and the Hobby plan silently ignores it. The
+> deployment still reports `regions: ["iad1"]` and every query keeps crossing the planet.
+> The region must be set for the whole project. `npm run test:perf` now fails if anyone
+> reintroduces the per-route version.
+
+That matches the Supabase project, which lives in **ap-south-1 (Mumbai)**. If you ever move
+the Supabase project to another region, change this to the matching Vercel region:
+
+| Supabase region | Vercel region |
+|---|---|
+| `ap-south-1` Mumbai | `bom1` |
+| `ap-southeast-1` Singapore | `sin1` |
+| `us-east-1` Virginia | `iad1` |
+| `eu-west-1` Ireland | `dub1` |
+
+**Check it yourself:** every deployment has a `functions-config-manifest.json`. If the region
+is wrong, each page load makes a dozen round trips between continents — several seconds.
+If it is right, those same trips take milliseconds.
+
+`npm run test:perf` fails if the region pin is ever removed.
+
+### Other things that keep it fast
+
+- `getAuthContext()` is memoised with React `cache()`, so the layout and the page share one
+  session resolution rather than each performing their own auth + profile + membership +
+  organisation lookups.
+- `orgMembers()` in `lib/data/request-cache.ts` is shared between the layout and five pages.
+- Every `/app` route has a `loading.tsx`, so navigation paints the page shape immediately
+  instead of appearing frozen.
+- `supabase/migrations/0004_performance.sql` adds the indexes the queries need and makes
+  Postgres evaluate `auth.uid()` once per query instead of once per row.
+
+### If it still feels slow
+
+1. Confirm the deployment actually used the new code (Deployments → the latest build's
+   commit should be the performance commit).
+2. Check the region: a page pinned to `iad1` while the database is in Mumbai will always
+   be slow, no matter what else you optimise.
+3. Supabase free tier pauses idle compute; the first request after a quiet period can take
+   a few seconds while the database wakes up. That is infrastructure, not the app.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
