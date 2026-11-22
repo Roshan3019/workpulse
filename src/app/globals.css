@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens
+--------------------------------------------------------------------------- */
+@theme {
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --color-brand: #4f46e5;
+  --color-brand-dark: #4338ca;
+  --color-brand-soft: #eef0fe;
+  --color-brand-line: #d3d8fb;
+
+  --color-ink: #111827;
+  --color-ink-2: #374151;
+  --color-muted: #6b7280;
+  --color-faint: #9ca3af;
+
+  --color-line: #e8eaf2;
+  --color-line-2: #dde1ee;
+  --color-canvas: #f6f7fb;
+
+  --color-ok: #10b981;
+  --color-ok-dark: #059669;
+  --color-ok-soft: #e7f8f0;
+  --color-warn: #f59e0b;
+  --color-warn-dark: #b45309;
+  --color-warn-soft: #fef4e2;
+  --color-bad: #ef4444;
+  --color-bad-soft: #fdecec;
+
+  --radius-xl2: 20px;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background-color: var(--color-canvas);
+    background-image:
+      linear-gradient(var(--color-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
+    background-size: 32px 32px;
+    min-height: 100vh;
+  }
+  ::selection {
+    background: #d3d8fb;
+  }
+  /* Consistent focus ring for keyboard users */
+  :where(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-[20px] border border-line bg-white shadow-[0_1px_3px_rgba(16,24,40,.05),0_1px_2px_rgba(16,24,40,.04)];
+  }
+
+  /* buttons: shared base, then variants. (Tailwind v4 can't @apply custom
+     component classes, so the base is declared once for the group.) */
+  .btn,
+  .btn-primary,
+  .btn-outline,
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-55;
+  }
+  .btn-primary {
+    @apply bg-brand text-white shadow-[0_4px_14px_rgba(79,70,229,.28)] hover:bg-brand-dark;
+  }
+  .btn-outline {
+    @apply border border-line-2 bg-white text-ink-2 hover:border-[#c7ccdf] hover:bg-[#fafaff];
+  }
+  .btn-ghost {
+    @apply text-ink-2 hover:bg-[#f1f3fa];
+  }
+  .btn-sm {
+    @apply px-3.5 py-2 text-[13px];
+  }
+
+  .pill,
+  .pill-green,
+  .pill-indigo,
+  .pill-amber,
+  .pill-red,
+  .pill-grey {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-transparent px-2.5 py-1 text-[11px] font-bold tracking-[.06em] uppercase;
+  }
+  .pill-green {
+    @apply border-[#bfe9d6] bg-ok-soft text-ok-dark;
+  }
+  .pill-indigo {
+    @apply border-brand-line bg-brand-soft text-brand-dark;
+  }
+  .pill-amber {
+    @apply border-[#f5dfae] bg-warn-soft text-warn-dark;
+  }
+  .pill-red {
+    @apply border-[#f3c2c2] bg-bad-soft text-[#b91c1c];
+  }
+  .pill-grey {
+    @apply border-line bg-[#f1f3f9] text-muted;
+  }
+
+  .field label {
+    @apply mb-1.5 block text-[11px] font-extrabold tracking-[.07em] text-muted uppercase;
+  }
+  .field input,
+  .field select,
+  .field textarea {
+    @apply w-full rounded-xl border border-line-2 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-brand;
+  }
+  .label {
+    @apply text-[11px] font-extrabold tracking-[.07em] text-muted uppercase;
+  }
+  .h1 {
+    @apply text-[26px] leading-tight font-extrabold tracking-[-0.02em] sm:text-[32px];
+  }
+  .h2 {
+    @apply text-lg font-extrabold tracking-[-0.01em];
+  }
+  .lede {
+    @apply mt-1.5 text-[14.5px] text-muted;
+  }
+  .track {
+    @apply h-2.5 overflow-hidden rounded-full bg-[#eef0f7];
+  }
+  .scroll-x {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+}
+
+/* availability grid cells ------------------------------------------------- */
+.cell {
+  height: 34px;
+  margin: 3px;
+  border-radius: 9px;
+  background: #eef1f8;
+  border: 1px solid #e3e6f2;
+  transition: background 0.1s;
+  cursor: pointer;
+  touch-action: none;
+}
+.cell[data-free="true"] {
+  background: var(--color-ok);
+  border-color: var(--color-ok-dark);
+}
+.cell[data-readonly="true"] {
+  cursor: default;
+}
+.cell[data-selected="true"] {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+@media (max-width: 640px) {
+  .cell {
+    height: 30px;
+    margin: 2px;
+    border-radius: 7px;
+  }
+}
+
+@keyframes wp-slide-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.animate-slide-in {
+  animation: wp-slide-in 0.25s ease-out;
+}
