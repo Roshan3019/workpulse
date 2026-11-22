@@ -44,24 +44,36 @@ console.log("=== performance guards ===");
 /* -------------------------------------------------------------------------- */
 /* 1. Region                                                                  */
 /* -------------------------------------------------------------------------- */
-check("app layout pins server functions to the database region", () => {
-  const src = read("src/app/app/layout.tsx");
-  const m = src.match(/export const preferredRegion\s*=\s*["']([^"']+)["']/);
-  assert(m, "src/app/app/layout.tsx has no `export const preferredRegion`");
+check("vercel.json pins functions to the database region", () => {
+  const raw = read("vercel.json");
+  const cfg = JSON.parse(raw);
   assert(
-    m[1] === "bom1",
-    `preferredRegion is "${m[1]}" but the Supabase project is in ap-south-1 (Mumbai) → expected "bom1"`,
+    Array.isArray(cfg.regions) && cfg.regions.length === 1,
+    "vercel.json must set exactly one region (the Hobby plan allows a single function region)",
   );
-  return `preferredRegion = ${m[1]}`;
+  assert(
+    cfg.regions[0] === "bom1",
+    `regions[0] is "${cfg.regions[0]}" but the Supabase project is in ap-south-1 (Mumbai) → expected "bom1"`,
+  );
+  return `regions = ["${cfg.regions[0]}"]`;
 });
 
-check("no page still declares its own contradicting region", () => {
-  const pages = ["src/app/app/page.tsx", "src/app/app/team/page.tsx", "src/app/app/tasks/page.tsx"];
-  for (const p of pages) {
-    const src = read(p);
-    assert(!/preferredRegion/.test(src), `${p} redeclares preferredRegion; keep it only in the layout`);
-  }
-  return "layout is the single source of truth";
+check("region is NOT set per-route (a Hobby-plan trap)", () => {
+  /*
+   * `export const preferredRegion` in a page/layout looks correct and builds
+   * cleanly, but the Hobby plan ignores it: the deployment still reports
+   * regions: ["iad1"] and every query keeps crossing the planet. It has to be
+   * project-level. This is the exact mistake that was made once already.
+   */
+  const layouts = ["src/app/app/layout.tsx", "src/app/app/page.tsx", "src/app/layout.tsx"];
+  const offenders = layouts.filter((p) =>
+    /export const preferredRegion\s*=/.test(read(p)),
+  );
+  assert(
+    offenders.length === 0,
+    `per-route preferredRegion is ignored on Hobby — set it in vercel.json instead: ${offenders.join(", ")}`,
+  );
+  return "vercel.json is the single source of truth";
 });
 
 /* -------------------------------------------------------------------------- */

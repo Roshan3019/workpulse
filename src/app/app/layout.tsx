@@ -3,17 +3,13 @@ import { orgMembers } from "@/lib/data/request-cache";
 import { requireSession } from "@/lib/session";
 
 /*
- * Render the app in the same region as the database.
+ * NOTE: the function region deliberately is NOT set here.
  *
- * Supabase is in Mumbai (ap-south-1). Vercel's default is Washington D.C., so
- * every query was crossing the planet twice — ~200ms of pure network per
- * round trip, multiplied by a dozen queries per page. `bom1` is Vercel's
- * Mumbai region and is also closest to the app's users.
- *
- * Set on the layout so every /app page inherits it. If you move the Supabase
- * project, update this to the matching region.
+ * A route-level `export const preferredRegion` is ignored on the Hobby plan —
+ * it is a single-region plan, and the region has to be set for the whole
+ * project in vercel.json. See the "regions" key there. Setting it in both
+ * places is confusing and the per-route one silently does nothing.
  */
-export const preferredRegion = "bom1";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
