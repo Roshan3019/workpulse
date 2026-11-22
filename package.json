@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 8080",
     "typecheck": "tsc --noEmit",
-    "test:sql": "node tests/sql/invite-token.test.cjs"
+    "test:sql": "node tests/sql/invite-token.test.cjs",
+    "test:auth": "node tests/auth-flow.test.cjs",
+    "test": "npm run test:sql && npm run test:auth"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

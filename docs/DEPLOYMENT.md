@@ -81,6 +81,10 @@ on Vercel, redeploy. In Docker, pass them as build args or bake `.env.production
       `Availability is only tracked for members`).
 - [ ] `service_role` key is **not** in any `NEXT_PUBLIC_*` variable and not in the repo.
 - [ ] Turn on **Point-in-time recovery / daily backups** (Database → Backups).
+- [ ] **Auth → URL Configuration → Site URL** points at the real app (not `localhost:3000`), and
+      `…/auth/callback` is listed in **Redirect URLs** for *every* origin you use (localhost,
+      127.0.0.1, production, Vercel previews). Wrong values here are the #1 cause of "Google login
+      succeeded but I was sent back to /login".
 - [ ] Set **Auth → Rate limits** and **Auth → Email templates** with your brand.
 - [ ] Optional: enable **leaked password protection** and a minimum password length of 10.
 
