@@ -125,6 +125,10 @@ emailing off.
    - Google Cloud → Authorized JavaScript origins
 5. (Recommended) add `www`/apex domain in Vercel → Settings → Domains. HTTPS is automatic.
 
+**New to this?** [`docs/GO-LIVE.md`](docs/GO-LIVE.md) is a click-by-click Vercel walkthrough
+(Supabase → Google OAuth → Vercel → domain → smoke test), including the three things that
+usually go wrong.
+
 Docker/self-hosting and the full launch checklist: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ---

@@ -67,11 +67,13 @@ on Vercel, redeploy. In Docker, pass them as build args or bake `.env.production
 ## 3. Security checklist
 
 ### Database (Supabase)
-- [ ] `0001_init.sql` applied (plus `0002_fix_invite_token.sql` if `0001` was applied before the
-      invite-token fix — otherwise "Create invite" fails with
-      `function gen_random_bytes(integer) does not exist`); **RLS enabled on every table** (verify in Database → Tables, the lock
-      icon should be on for `profiles`, `organizations`, `memberships`, `invites`, `tasks`,
-      `availability`, `audit_log`).
+- [ ] Migrations applied, in this order:
+      - **New project:** `0001_init.sql` → `0003_invite_preview_and_email.sql`
+        (`0002` is only for databases created *before* the invite-token fix — skip it on a fresh project)
+      - **Existing project:** whichever of `0002` / `0003` you have not run yet
+      Missing `0003` breaks invite links (`invite_preview` does not exist).
+- [ ] **RLS enabled on every table** (Database → Tables — the lock icon should be on for `profiles`,
+      `organizations`, `memberships`, `invites`, `tasks`, `availability`, `audit_log`).
 - [ ] Test with two accounts in different orgs: member A cannot read org B's tasks
       (`select * from tasks` returns only their org).
 - [ ] Verify a member cannot update someone else's task's `est_hours` (trigger raises
