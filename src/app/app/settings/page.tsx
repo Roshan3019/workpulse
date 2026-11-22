@@ -6,6 +6,7 @@ import {
   TransferOwnershipPanel,
 } from "@/components/settings/SettingsPanels";
 import { getStore } from "@/lib/data";
+import { orgMembers } from "@/lib/data/request-cache";
 import { env } from "@/lib/env";
 import { requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
@@ -20,8 +21,10 @@ export default async function SettingsPage() {
   const admin = isAdminRole(session.membership.role);
   const owner = session.membership.role === "owner";
 
-  const members = await store.listMembers(orgId);
-  const invites = admin ? await store.listInvites(orgId) : [];
+  const [members, invites] = await Promise.all([
+    orgMembers(orgId),
+    admin ? store.listInvites(orgId) : Promise.resolve([]),
+  ]);
 
   return (
     <div className="space-y-5">

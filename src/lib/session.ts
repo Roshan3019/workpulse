@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { env, DEMO_COOKIE, ORG_COOKIE } from "./env";
@@ -8,6 +9,8 @@ import { DEMO_ORG_ID } from "./data/types";
 import { createSupabaseServerClient } from "./supabase/server";
 import { isAdminRole, type OrgRole, type Organization, type Profile, type Session } from "./types";
 
+type Row = Record<string, any>;
+
 export interface AuthContext {
   user: Profile;
   membership: Session["membership"] | null;
@@ -15,8 +18,14 @@ export interface AuthContext {
   demo: boolean;
 }
 
-/** Resolve the signed-in user + their org membership (or null when signed out). */
-export async function getAuthContext(): Promise<AuthContext | null> {
+/**
+ * Resolve the signed-in user + their org membership (or null when signed out).
+ *
+ * Wrapped in `cache()` because both the layout *and* the page resolve the
+ * session; without this every page performed the whole user → profile →
+ * memberships → organisation sequence twice.
+ */
+export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   if (env.demoMode) {
     const cookieStore = await cookies();
     const userId = cookieStore.get(DEMO_COOKIE)?.value;
@@ -50,11 +59,27 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profileRow, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, email, full_name, avatar_url")
-    .eq("id", user.id)
-    .maybeSingle();
+  const cookieStore = await cookies();
+  const preferredOrg = cookieStore.get(ORG_COOKIE)?.value;
+
+  /*
+   * One round trip instead of three.
+   *
+   * These were originally three sequential awaits (profile → memberships →
+   * organisation), so the page waited on the database three times over. The
+   * profile and membership lookups are independent, and the organisation is
+   * reachable from membership via an embedded select, so all of it comes back
+   * in a single request.
+   */
+  const [profileResult, membershipResult] = await Promise.all([
+    supabase.from("profiles").select("id, email, full_name, avatar_url").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("memberships")
+      .select("id, org_id, user_id, role, capacity, organizations(id, name, slug, plan, seat_limit)")
+      .eq("user_id", user.id),
+  ]);
+
+  const { data: profileRow, error: profileError } = profileResult;
 
   let profile: Profile = {
     id: user.id,
@@ -71,22 +96,22 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     };
   }
 
-  const store = getStore();
-  const cookieStore = await cookies();
-  const preferredOrg = cookieStore.get(ORG_COOKIE)?.value;
-
-  const { data: membershipRows } = await supabase
-    .from("memberships")
-    .select("id, org_id, user_id, role, capacity")
-    .eq("user_id", user.id);
-
-  const rows = membershipRows ?? [];
+  const rows = membershipResult.data ?? [];
   const chosen = rows.find((r) => r.org_id === preferredOrg) ?? rows[0];
   if (!chosen) {
     return { user: profile, membership: null, organization: null, demo: false };
   }
 
-  const organization = await store.getOrg(chosen.org_id as string);
+  const embedded = (chosen as { organizations?: Row }).organizations;
+  const organization: Organization | null = embedded
+    ? {
+        id: embedded.id as string,
+        name: embedded.name as string,
+        slug: embedded.slug as string,
+        plan: embedded.plan as Organization["plan"],
+        seatLimit: embedded.seat_limit as number,
+      }
+    : await getStore().getOrg(chosen.org_id as string);
   return {
     user: profile,
     membership: {
@@ -99,7 +124,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     organization,
     demo: false,
   };
-}
+});
 
 /** Session that is guaranteed to have an organization (else → /onboarding). */
 export async function requireSession(): Promise<Session> {

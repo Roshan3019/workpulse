@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { TeamGrid } from "@/components/team/TeamGrid";
 import { Badge, EmptyState, Section } from "@/components/ui";
 import { getStore } from "@/lib/data";
+import { orgMembers } from "@/lib/data/request-cache";
 import { nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
@@ -16,8 +17,8 @@ export default async function TeamPage() {
 
   const store = getStore();
   const orgId = session.organization.id;
-  const members = await store.listMembers(orgId);
-  const dates = nextDatesIn(7, await getUserTimeZone());
+  const [members, tz] = await Promise.all([orgMembers(orgId), getUserTimeZone()]);
+  const dates = nextDatesIn(7, tz);
   const memberIds = members.filter((m) => m.role === "member").map((m) => m.userId);
   const availability = await store.getAvailability(orgId, memberIds, dates);
 
