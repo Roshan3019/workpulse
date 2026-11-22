@@ -30,6 +30,11 @@ interaction works — including drag-to-paint availability and role changes.
 1. Create a project at [supabase.com](https://supabase.com) (pick the region closest to your users).
 2. **SQL Editor → New query** → paste [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) → **Run**.
    This creates the tables, helper functions, triggers and **Row Level Security policies**.
+   > **Upgrading an existing project?** Run these in order too:
+   > [`0002_fix_invite_token.sql`](supabase/migrations/0002_fix_invite_token.sql) (invite creation
+   > failed with `gen_random_bytes(integer) does not exist`) and
+   > [`0003_invite_preview_and_email.sql`](supabase/migrations/0003_invite_preview_and_email.sql)
+   > (invite links 500'd for signed-out visitors; adds optional invite emails and task timings).
 3. Copy your keys from **Project Settings → API**:
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -41,8 +46,17 @@ interaction works — including drag-to-paint availability and role changes.
 2. **Authentication → Providers → Google**: enable and paste a Google OAuth **Client ID + Secret**
    (see 2.3).
 3. **Authentication → URL Configuration**
-   - Site URL: `https://yourdomain.com`
-   - Redirect URLs: `https://yourdomain.com/auth/callback`, `http://localhost:8080/auth/callback`
+   - **Site URL: `http://localhost:8080` while developing locally**, `https://yourdomain.com` in production.
+     If this is wrong, Supabase silently redirects the user to the *Site URL* instead of your
+     `/auth/callback` — Google sign-in appears to succeed and then dumps you back on the login
+     page. The app now rescues a stray `?code=` on any path, but set this correctly anyway.
+   - Redirect URLs (add every origin you actually use, including both localhost spellings):
+     ```
+     http://localhost:8080/auth/callback
+     http://127.0.0.1:8080/auth/callback
+     https://yourdomain.com/auth/callback
+     ```
+   - On Vercel previews, also add `https://*-<your-team>.vercel.app/auth/callback`.
 
 ### 2.3 Google OAuth
 1. [Google Cloud Console](https://console.cloud.google.com) → create/select a project.
@@ -52,6 +66,11 @@ interaction works — including drag-to-paint availability and role changes.
    - Authorized JavaScript origins: `https://yourdomain.com`, `http://localhost:8080`
    - Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`
 4. Paste the Client ID/Secret into Supabase's Google provider.
+
+> **Native dev note:** `npm run dev` binds `0.0.0.0`. Always open the **same host** you put in
+> Supabase (e.g. `localhost:8080`), never mix `localhost` and `127.0.0.1` — they are different
+> cookie origins, so the session and the PKCE verifier end up on different hosts and the login
+> bounces. Set `NEXT_PUBLIC_SITE_URL` to the exact URL you browse to.
 
 ### 2.4 Configure the app
 ```bash
@@ -69,6 +88,28 @@ signing up routes you to `/onboarding` to create your organization.
 ### 2.5 Make yourself the first owner
 Sign up, create your workspace → you are automatically the `owner` (the `create_organization` RPC
 does this atomically). Everyone else joins through an invite as a `member`.
+
+### 2.6 Invite links (and optionally email them)
+
+An invite link works for someone who has **never used WorkPulse**: they open it, see which team
+they're joining, create an account (or sign in), and land back on the same page to accept. The
+email on the invite is enforced by the database, so a link sent to `a@b.com` can only be claimed
+by that address.
+
+Out of the box you get the link to copy and paste. To have Supabase **email the invite** too:
+
+```sql
+-- run once in the SQL Editor (service-role key stays in Postgres, never in the browser)
+select public.set_setting('project_url',         'https://<project-ref>.supabase.co');
+select public.set_setting('service_role_key',    '<service-role-key>');
+select public.set_setting('invite_redirect_url', 'https://yourdomain.com/auth/callback?next=/app');
+```
+
+A trigger on `invites` then calls GoTrue's `/auth/v1/invite` endpoint, which sends Supabase's
+built-in "You've been invited" email. Brand it in **Authentication → Email Templates → Invite user**.
+Delivery is best-effort: if it fails, the invite row still exists and the admin can copy the link.
+Remove the setting (`delete from public.app_settings where key = 'service_role_key';`) to switch
+emailing off.
 
 ---
 
@@ -97,7 +138,8 @@ src/
 │   ├── login/ signup/           auth (Google + email/password)
 │   ├── onboarding/              create the first organization
 │   ├── invite/[token]/          accept an invite link
-│   ├── auth/callback/           Supabase OAuth code exchange
+│   ├── auth/login/              OAuth start (sets PKCE cookie on the redirect)
+│   ├── auth/callback/           Supabase OAuth code exchange (+ email OTP links)
 │   └── app/                     authenticated product
 │       ├── layout.tsx           shell: nav, plan meter, user menu
 │       ├── page.tsx             admin dashboard (workload + overall time slots)
@@ -116,10 +158,25 @@ src/
 │   ├── dates.ts                 date/hour helpers, range formatting
 │   ├── validation.ts            zod schemas for every mutation
 │   └── types.ts                 domain types + plan definitions
-├── proxy.ts                     middleware: session refresh + /app route guard
+├── middleware.ts                session refresh + /app route guard + auth-code rescue
 supabase/migrations/0001_init.sql   schema, triggers, RLS, RPCs
+supabase/migrations/0002_fix_invite_token.sql   invite-token fix (pgcrypto-free)
+supabase/migrations/0003_invite_preview_and_email.sql  invite links, emails, task timing
+tests/sql/invite-token.test.cjs     npm run test:sql  — invite RPC on a real Postgres
+tests/sql/invite-link.test.cjs      npm run test:invite — invite link before signup
+tests/dates.test.cjs                npm run test:dates  — timezone-aware date windows
+tests/auth-flow.test.cjs            npm run test:auth — OAuth/PKCE round-trip vs a mock Supabase
 docs/DEPLOYMENT.md                  deploy + launch + security checklist
 ```
+
+### Dates follow the user's clock, not the server's
+
+Every "next 7 days" window is built from the user's local date. A `<TimeZoneSync />`
+client component writes the browser timezone to a `wp_tz` cookie on first visit, and pages
+compute the window with `nextDatesIn(7, await getUserTimeZone())`. Without this, a user in
+India would see yesterday's dates for the first 5.5 hours of their day, because Vercel renders
+in UTC. The same component watches for midnight and calls `router.refresh()`, so a dashboard
+left open overnight moves to the new week on its own.
 
 ### Business rules (enforced in the database, not just the UI)
 

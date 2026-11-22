@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { TeamGrid } from "@/components/team/TeamGrid";
 import { Badge, EmptyState, Section } from "@/components/ui";
 import { getStore } from "@/lib/data";
-import { nextDates } from "@/lib/dates";
-import { requireSession } from "@/lib/session";
+import { nextDatesIn } from "@/lib/dates";
+import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
 
 export const metadata = { title: "Team" };
@@ -17,7 +17,7 @@ export default async function TeamPage() {
   const store = getStore();
   const orgId = session.organization.id;
   const members = await store.listMembers(orgId);
-  const dates = nextDates(7);
+  const dates = nextDatesIn(7, await getUserTimeZone());
   const memberIds = members.filter((m) => m.role === "member").map((m) => m.userId);
   const availability = await store.getAvailability(orgId, memberIds, dates);
 

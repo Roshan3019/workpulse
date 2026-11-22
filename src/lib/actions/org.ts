@@ -110,7 +110,16 @@ export async function createInviteAction(formData: FormData): Promise<ActionResu
       parsed.data.role,
     );
     revalidatePath("/app/settings");
-    return { ok: true, token: invite.token, message: "Invite created — copy the link and share it." };
+    const emailed = Boolean(parsed.data.email);
+    return {
+      ok: true,
+      token: invite.token,
+      // With email delivery configured (0003) Supabase sends the invite; the
+      // link is always shown as the reliable fallback.
+      message: emailed
+        ? `Invite created${emailed ? " and emailed (if delivery is configured)" : ""} — the link below always works too.`
+        : "Shareable link created — anyone with the link can join.",
+    };
   } catch (error) {
     return { error: (error as Error).message };
   }

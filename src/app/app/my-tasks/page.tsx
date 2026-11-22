@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { MemberTaskCard } from "@/components/tasks/MemberTaskCard";
 import { Badge, EmptyState } from "@/components/ui";
 import { getStore } from "@/lib/data";
-import { nextDates } from "@/lib/dates";
-import { requireSession } from "@/lib/session";
+import { nextDatesIn } from "@/lib/dates";
+import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
 
 export const metadata = { title: "My tasks" };
@@ -21,7 +21,7 @@ export default async function MyTasksPage() {
   const active = tasks.filter((t) => t.status !== "done");
   const done = tasks.filter((t) => t.status === "done");
 
-  const dates = nextDates(7);
+  const dates = nextDatesIn(7, await getUserTimeZone());
   const availability = await store.getAvailability(orgId, [session.membership.userId], dates);
   const freeNext7 = dates.reduce((sum, d) => sum + (availability[session.membership.userId]?.[d]?.length ?? 0), 0);
   const assignedHours = active.reduce((sum, t) => sum + Number(t.estHours), 0);

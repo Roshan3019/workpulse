@@ -109,3 +109,104 @@ export const PRESETS = {
   mornings: [6, 7, 8, 9, 10, 11, 12],
   evenings: [17, 18, 19, 20, 21],
 } as const;
+
+/* -------------------------------------------------------------------------- */
+/* Task timing — relative, so deadlines read as "in 3 days" not a bare date    */
+/* -------------------------------------------------------------------------- */
+
+/** `YYYY-MM-DD` + `HH:MM` → local Date. Missing time means end of day. */
+export function dueDateOf(dateISO: string, time?: string | null): Date {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  if (time && /^\d{2}:\d{2}$/.test(time)) {
+    const [hh, mm] = time.split(":").map(Number);
+    return new Date(y, (m ?? 1) - 1, d ?? 1, hh, mm, 0, 0);
+  }
+  return new Date(y, (m ?? 1) - 1, d ?? 1, 23, 59, 0, 0);
+}
+
+export function dueLabel(dateISO: string, time?: string | null): string {
+  const d = dueDateOf(dateISO, time);
+  const datePart = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (!time) return datePart;
+  return `${datePart}, ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+}
+
+/**
+ * Human countdown: "Overdue by 2 days", "Due today, 5:00 PM", "In 3 days".
+ * Computed against the clock at render time, so it is always current.
+ */
+export function countdownLabel(dateISO: string, time?: string | null, now = new Date()): string {
+  const due = dueDateOf(dateISO, time);
+  const ms = due.getTime() - now.getTime();
+  const dayMs = 86_400_000;
+
+  if (ms < 0) {
+    const overdueDays = Math.floor(-ms / dayMs);
+    if (overdueDays === 0) return "Overdue";
+    return `Overdue by ${overdueDays} ${overdueDays === 1 ? "day" : "days"}`;
+  }
+
+  const sameDay = toISODate(now) === dateISO;
+  const tomorrow = toISODate(new Date(now.getTime() + dayMs)) === dateISO;
+
+  if (sameDay) {
+    const h = Math.max(1, Math.round(ms / 3_600_000));
+    if (ms < 3_600_000) return `Due in ${Math.max(1, Math.round(ms / 60_000))} min`;
+    return `Due today · ${h}h left`;
+  }
+  if (tomorrow) return "Due tomorrow";
+
+  const days = Math.round(ms / dayMs);
+  if (days <= 14) return `In ${days} days`;
+  return `In ${Math.round(days / 7)} weeks`;
+}
+
+/** Hours between start date and due date — the "float" a task has. */
+export function timingWindowDays(startISO: string | null, dueISO: string | null): number | null {
+  if (!startISO || !dueISO) return null;
+  const a = fromISODate(startISO).getTime();
+  const b = fromISODate(dueISO).getTime();
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
+
+export const TIME_PRESETS = [
+  { label: "Morning · 9 AM", value: "09:00" },
+  { label: "Noon · 12 PM", value: "12:00" },
+  { label: "End of day · 6 PM", value: "18:00" },
+] as const;
+
+/* -------------------------------------------------------------------------- */
+/* "Now" in the user's timezone, not the server's                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Today's date (YYYY-MM-DD) as the *user* experiences it.
+ *
+ * On a server (Vercel runs UTC) `new Date()` can already be "tomorrow" while
+ * the user is still in yesterday evening — or still "yesterday" for a user in
+ * New Zealand. Pages therefore pass the browser's timezone (the `wp_tz`
+ * cookie, set by `TimeZoneSync`) and every date window is computed against it.
+ * Falls back to the server clock when the cookie is absent.
+ */
+export function todayISOIn(tz?: string | null): string {
+  if (!tz) return todayISO();
+  try {
+    // en-CA formats as YYYY-MM-DD.
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return todayISO();
+  }
+}
+
+/** `nextDates`, anchored to the user's local today. */
+export function nextDatesIn(count: number, tz?: string | null): string[] {
+  return nextDates(count, todayISOIn(tz));
+}
+
+/** The `wp_tz` cookie name used by <TimeZoneSync /> and the server pages. */
+export const TZ_COOKIE = "wp_tz";

@@ -11,6 +11,19 @@ import type {
 } from "../types";
 import { nextDates, todayISO } from "../dates";
 
+/**
+ * What an invite link needs to show before the visitor has an account:
+ * the team they're joining, the role, and which email it was sent to.
+ */
+export interface InviteLookup {
+  orgId: string;
+  orgName: string | null;
+  email: string | null;
+  role: OrgRole;
+  expiresAt: string;
+  acceptedAt: string | null;
+}
+
 export interface TaskFilters {
   assigneeId?: string;
   status?: string;
@@ -50,6 +63,8 @@ export interface DataStore {
 
   // invites ----------------------------------------------------------------
   listInvites(orgId: string): Promise<Invite[]>;
+  /** Public-ish lookup by link token. Returns null when unknown/expired/used. */
+  getInviteByToken(token: string): Promise<InviteLookup | null>;
   createInvite(orgId: string, email: string, role: OrgRole): Promise<Invite>;
   revokeInvite(orgId: string, inviteId: string): Promise<void>;
 }
@@ -118,16 +133,16 @@ export function seedMemory(): MemoryDatabase {
 
   const d = (n: number) => nextDates(Math.max(n, 0) + 1)[n] ?? todayISO();
   const tasks: Task[] = [
-    { id: "t1", orgId: org.id, title: "Designing Website", client: "Qween", description: "Refer Bluestone Website — hero, pricing and case-study pages.", assigneeId: U.aarav, estHours: 12, progress: 55, status: "in_progress", priority: "high", deadline: d(2), createdAt: new Date().toISOString() },
-    { id: "t2", orgId: org.id, title: "Brand Identity Refresh", client: "Bluestone", description: "Logo variants, type scale and a 12-page brand guide.", assigneeId: U.priya, estHours: 9, progress: 30, status: "in_progress", priority: "medium", deadline: d(4), createdAt: new Date().toISOString() },
-    { id: "t3", orgId: org.id, title: "Landing Page Build", client: "Cinegem Studio", description: "Next.js marketing page with CMS-driven sections.", assigneeId: U.testMember, estHours: 16, progress: 10, status: "pending", priority: "high", deadline: d(6), createdAt: new Date().toISOString() },
-    { id: "t4", orgId: org.id, title: "Mobile App UI", client: "Qween", description: "Onboarding flow + dashboard screens for iOS and Android.", assigneeId: U.roshan2, estHours: 20, progress: 65, status: "in_progress", priority: "high", deadline: d(3), createdAt: new Date().toISOString() },
-    { id: "t5", orgId: org.id, title: "SEO Audit Report", client: "Northlight Films", description: "Technical audit with prioritised fixes and keyword gaps.", assigneeId: U.neha, estHours: 6, progress: 100, status: "done", priority: "low", deadline: d(-2), createdAt: new Date().toISOString() },
-    { id: "t6", orgId: org.id, title: "Product Photoshoot Retouch", client: "Bluestone", description: "42 product shots — background cleanup and colour match.", assigneeId: U.kabir, estHours: 14, progress: 40, status: "in_progress", priority: "medium", deadline: d(5), createdAt: new Date().toISOString() },
-    { id: "t7", orgId: org.id, title: "Q3 Client Deck", client: "Qween", description: "12-slide results deck with charts from the analytics export.", assigneeId: U.aarav, estHours: 5, progress: 0, status: "pending", priority: "medium", deadline: d(8), createdAt: new Date().toISOString() },
-    { id: "t8", orgId: org.id, title: "Website QA Pass", client: "Cinegem Studio", description: "Cross-browser QA, accessibility checks, bug list.", assigneeId: U.testMember, estHours: 4, progress: 0, status: "pending", priority: "low", deadline: d(9), createdAt: new Date().toISOString() },
-    { id: "t9", orgId: org.id, title: "Newsletter Template", client: "Northlight Films", description: "Responsive email template, dark + light variants.", assigneeId: U.neha, estHours: 3, progress: 100, status: "done", priority: "low", deadline: d(-5), createdAt: new Date().toISOString() },
-    { id: "t10", orgId: org.id, title: "Pricing Page Copy", client: "Bluestone", description: "Rewrite pricing tiers and FAQ, tone: confident and plain.", assigneeId: U.priya, estHours: 4, progress: 0, status: "pending", priority: "high", deadline: d(1), createdAt: new Date().toISOString() },
+    { id: "t1", orgId: org.id, title: "Designing Website", client: "Qween", description: "Refer Bluestone Website — hero, pricing and case-study pages.", assigneeId: U.aarav, estHours: 12, progress: 55, status: "in_progress", priority: "high", deadline: d(2), startDate: d(0), dueTime: "10:00", createdAt: new Date().toISOString() },
+    { id: "t2", orgId: org.id, title: "Brand Identity Refresh", client: "Bluestone", description: "Logo variants, type scale and a 12-page brand guide.", assigneeId: U.priya, estHours: 9, progress: 30, status: "in_progress", priority: "medium", deadline: d(4), startDate: d(2), dueTime: "14:00", createdAt: new Date().toISOString() },
+    { id: "t3", orgId: org.id, title: "Landing Page Build", client: "Cinegem Studio", description: "Next.js marketing page with CMS-driven sections.", assigneeId: U.testMember, estHours: 16, progress: 10, status: "pending", priority: "high", deadline: d(6), startDate: d(4), dueTime: "16:00", createdAt: new Date().toISOString() },
+    { id: "t4", orgId: org.id, title: "Mobile App UI", client: "Qween", description: "Onboarding flow + dashboard screens for iOS and Android.", assigneeId: U.roshan2, estHours: 20, progress: 65, status: "in_progress", priority: "high", deadline: d(3), startDate: d(1), dueTime: "17:30", createdAt: new Date().toISOString() },
+    { id: "t5", orgId: org.id, title: "SEO Audit Report", client: "Northlight Films", description: "Technical audit with prioritised fixes and keyword gaps.", assigneeId: U.neha, estHours: 6, progress: 100, status: "done", priority: "low", deadline: d(-2), startDate: d(-2), dueTime: "10:00", createdAt: new Date().toISOString() },
+    { id: "t6", orgId: org.id, title: "Product Photoshoot Retouch", client: "Bluestone", description: "42 product shots — background cleanup and colour match.", assigneeId: U.kabir, estHours: 14, progress: 40, status: "in_progress", priority: "medium", deadline: d(5), startDate: d(3), dueTime: "18:00", createdAt: new Date().toISOString() },
+    { id: "t7", orgId: org.id, title: "Q3 Client Deck", client: "Qween", description: "12-slide results deck with charts from the analytics export.", assigneeId: U.aarav, estHours: 5, progress: 0, status: "pending", priority: "medium", deadline: d(8), startDate: d(6), dueTime: "17:30", createdAt: new Date().toISOString() },
+    { id: "t8", orgId: org.id, title: "Website QA Pass", client: "Cinegem Studio", description: "Cross-browser QA, accessibility checks, bug list.", assigneeId: U.testMember, estHours: 4, progress: 0, status: "pending", priority: "low", deadline: d(9), startDate: d(7), dueTime: "13:00", createdAt: new Date().toISOString() },
+    { id: "t9", orgId: org.id, title: "Newsletter Template", client: "Northlight Films", description: "Responsive email template, dark + light variants.", assigneeId: U.neha, estHours: 3, progress: 100, status: "done", priority: "low", deadline: d(-5), startDate: d(-5), dueTime: "16:00", createdAt: new Date().toISOString() },
+    { id: "t10", orgId: org.id, title: "Pricing Page Copy", client: "Bluestone", description: "Rewrite pricing tiers and FAQ, tone: confident and plain.", assigneeId: U.priya, estHours: 4, progress: 0, status: "pending", priority: "high", deadline: d(1), startDate: d(-1), dueTime: "11:00", createdAt: new Date().toISOString() },
   ];
 
   // Availability: weekday 9–5 for most, with realistic gaps.

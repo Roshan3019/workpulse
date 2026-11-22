@@ -7,6 +7,7 @@ import { env, DEMO_COOKIE, ORG_COOKIE } from "../env";
 import { createSupabaseServerClient } from "../supabase/server";
 import { memoryStore } from "../data";
 import { signInSchema, signUpSchema } from "../validation";
+import { getOrigin } from "../origin";
 
 export type ActionState = { error?: string; ok?: boolean; message?: string };
 
@@ -26,7 +27,10 @@ export async function demoSignIn(userId: string): Promise<void> {
     maxAge: 60 * 60 * 24 * 7,
   });
   cookieStore.delete(ORG_COOKIE);
-  redirect(user.role === "member" ? "/app/my-tasks" : "/app");
+  // Land on the guided tour instead of dropping straight into the console —
+  // first impression, and it doubles as the product walkthrough.
+  if (user.role === "member") redirect("/app/my-tasks");
+  redirect("/onboarding");
 }
 
 export async function demoReset(): Promise<void> {
@@ -39,6 +43,12 @@ export async function demoReset(): Promise<void> {
 /* -------------------------------------------------------------------------- */
 /* LIVE MODE — email + password                                               */
 /* -------------------------------------------------------------------------- */
+/** Only same-site relative paths — prevents open redirects via ?next=. */
+function safeNext(value: FormDataEntryValue | null): string {
+  const raw = typeof value === "string" ? value : "";
+  return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/app";
+}
+
 export async function signInWithPassword(
   _prev: ActionState,
   formData: FormData,
@@ -56,7 +66,9 @@ export async function signInWithPassword(
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: error.message };
   revalidatePath("/", "layout");
-  redirect("/app");
+  // Honour ?next= carried by the sign-in form (set by the proxy when a
+  // signed-out visitor hit a protected page).
+  redirect(safeNext(formData.get("next")));
 }
 
 export async function signUpWithPassword(
@@ -73,6 +85,9 @@ export async function signUpWithPassword(
   }
   if (env.demoMode) return { error: "Sign-up needs a configured Supabase project." };
 
+  // Invited visitors arrive from /invite/<token>; they must land back there
+  // (not on /onboarding) once their account exists.
+  const next = safeNext(formData.get("next"));
   const origin = await siteOrigin();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signUp({
@@ -80,16 +95,16 @@ export async function signUpWithPassword(
     password: parsed.data.password,
     options: {
       data: { full_name: parsed.data.fullName },
-      emailRedirectTo: `${origin}/auth/callback?next=/app`,
+      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
     },
   });
   if (error) return { error: error.message };
 
   // If email confirmation is disabled in Supabase, a session comes back and we
-  // can continue straight to onboarding.
+  // can continue straight to the invite (or onboarding).
   if (data.session) {
     revalidatePath("/", "layout");
-    redirect("/onboarding");
+    redirect(next === "/app" ? "/onboarding" : next);
   }
   return { ok: true, message: "Check your inbox to confirm your email, then sign in." };
 }
@@ -111,23 +126,5 @@ export async function signOut(): Promise<void> {
 
 /** Absolute origin of the current request (for OAuth + email redirects). */
 async function siteOrigin(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? (host?.includes("localhost") ? "http" : "https");
-  return host ? `${proto}://${host}` : env.siteUrl;
-}
-
-export async function getOAuthUrl(next = "/app"): Promise<{ url?: string; error?: string }> {
-  if (env.demoMode) return { error: "Google sign-in needs a configured Supabase project." };
-  const origin = await siteOrigin();
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      queryParams: { access_type: "offline", prompt: "consent" },
-    },
-  });
-  if (error) return { error: error.message };
-  return { url: data.url };
+  return getOrigin(await headers(), env.siteUrl);
 }

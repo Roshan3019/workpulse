@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { env, DEMO_COOKIE, ORG_COOKIE } from "./env";
+import { TZ_COOKIE } from "./dates";
 import { getStore, memoryStore } from "./data";
 import { DEMO_ORG_ID } from "./data/types";
 import { createSupabaseServerClient } from "./supabase/server";
@@ -143,4 +144,20 @@ export async function getOrgMemberships(): Promise<{ id: string; name: string; r
     slug: row.organizations.slug,
     role: row.role as OrgRole,
   }));
+}
+
+/**
+ * The user's timezone (from the `wp_tz` cookie set by <TimeZoneSync />), used to
+ * anchor every "next N days" window to *their* today rather than the server's.
+ * Returns null when unknown, in which case callers fall back to the server clock.
+ */
+export async function getUserTimeZone(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(TZ_COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 }

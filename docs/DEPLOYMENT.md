@@ -67,7 +67,9 @@ on Vercel, redeploy. In Docker, pass them as build args or bake `.env.production
 ## 3. Security checklist
 
 ### Database (Supabase)
-- [ ] `0001_init.sql` applied; **RLS enabled on every table** (verify in Database → Tables, the lock
+- [ ] `0001_init.sql` applied (plus `0002_fix_invite_token.sql` if `0001` was applied before the
+      invite-token fix — otherwise "Create invite" fails with
+      `function gen_random_bytes(integer) does not exist`); **RLS enabled on every table** (verify in Database → Tables, the lock
       icon should be on for `profiles`, `organizations`, `memberships`, `invites`, `tasks`,
       `availability`, `audit_log`).
 - [ ] Test with two accounts in different orgs: member A cannot read org B's tasks
@@ -79,6 +81,10 @@ on Vercel, redeploy. In Docker, pass them as build args or bake `.env.production
       `Availability is only tracked for members`).
 - [ ] `service_role` key is **not** in any `NEXT_PUBLIC_*` variable and not in the repo.
 - [ ] Turn on **Point-in-time recovery / daily backups** (Database → Backups).
+- [ ] **Auth → URL Configuration → Site URL** points at the real app (not `localhost:3000`), and
+      `…/auth/callback` is listed in **Redirect URLs** for *every* origin you use (localhost,
+      127.0.0.1, production, Vercel previews). Wrong values here are the #1 cause of "Google login
+      succeeded but I was sent back to /login".
 - [ ] Set **Auth → Rate limits** and **Auth → Email templates** with your brand.
 - [ ] Optional: enable **leaked password protection** and a minimum password length of 10.
 

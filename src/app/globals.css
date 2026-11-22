@@ -137,30 +137,42 @@
 
 /* availability grid cells ------------------------------------------------- */
 .cell {
-  height: 34px;
-  margin: 3px;
-  border-radius: 9px;
+  height: 38px;
+  border-radius: 8px;
   background: #eef1f8;
-  border: 1px solid #e3e6f2;
-  transition: background 0.1s;
+  transition:
+    background 0.12s ease,
+    transform 0.12s ease;
   cursor: pointer;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cell:hover {
+  background: #e2e7f2;
 }
 .cell[data-free="true"] {
   background: var(--color-ok);
-  border-color: var(--color-ok-dark);
+}
+.cell[data-free="true"]:hover {
+  background: var(--color-ok-dark);
+}
+/* Today's row gets a subtle tint instead of an outline on every cell. */
+.cell[data-selected="true"] {
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.22);
 }
 .cell[data-readonly="true"] {
   cursor: default;
 }
-.cell[data-selected="true"] {
-  outline: 2px solid var(--color-brand);
-  outline-offset: -2px;
+.cell[data-readonly="true"]:hover {
+  background: #eef1f8;
+}
+.cell[data-readonly="true"][data-free="true"]:hover {
+  background: var(--color-ok);
 }
 @media (max-width: 640px) {
   .cell {
-    height: 30px;
-    margin: 2px;
+    height: 34px;
     border-radius: 7px;
   }
 }
@@ -177,4 +189,90 @@
 }
 .animate-slide-in {
   animation: wp-slide-in 0.25s ease-out;
+}
+
+/* ---------------------------------------------------------------------------
+   Progress slider
+   The bare <input type=range> rendered as an unstyled native control: no fill,
+   a 44px grey thumb, and a hit area smaller than the visual track. This styles
+   a real thumb, fills the track up to --fill, and widens the grabbable area.
+--------------------------------------------------------------------------- */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 34px; /* generous hit area, the track is drawn inside it */
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y; /* let vertical page scroll through, drag horizontally */
+}
+.range:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+/* --- track --- */
+.range::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--color-brand) 0%,
+    var(--color-brand) var(--fill, 0%),
+    #e4e7f5 var(--fill, 0%),
+    #e4e7f5 100%
+  );
+}
+.range::-moz-range-track {
+  height: 10px;
+  border-radius: 999px;
+  background: #e4e7f5;
+}
+.range::-moz-range-progress {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-brand);
+}
+
+/* --- thumb --- */
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -7px; /* (24 - 10) / 2 → centre on the track */
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--color-brand);
+  box-shadow: 0 1px 4px rgba(17, 24, 39, 0.22);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--color-brand);
+  box-shadow: 0 1px 4px rgba(17, 24, 39, 0.22);
+}
+
+/* grow on hover / while dragging — makes it feel grabbable */
+.range:hover::-webkit-slider-thumb,
+.range:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35);
+}
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 4px rgba(79, 70, 229, 0.22),
+    0 1px 4px rgba(17, 24, 39, 0.22);
+}
+@media (max-width: 640px) {
+  .range::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+    margin-top: -9px;
+  }
 }

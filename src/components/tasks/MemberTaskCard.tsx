@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui";
+import { ProgressSlider } from "@/components/tasks/ProgressSlider";
 import { updateProgressAction } from "@/lib/actions/tasks";
-import { shortDate, todayISO } from "@/lib/dates";
+import { countdownLabel, dueDateOf, dueLabel } from "@/lib/dates";
 import { STATUS_LABEL, type Task, type TaskStatus } from "@/lib/types";
 
 const STATUS_TONE = {
@@ -20,7 +21,8 @@ export function MemberTaskCard({ task }: { task: Task }) {
   const [status, setStatus] = useState<TaskStatus>(task.status);
   const [saved, setSaved] = useState(false);
 
-  const overdue = task.deadline && task.deadline < todayISO() && status !== "done";
+  const done = status === "done";
+  const overdue = Boolean(task.deadline) && !done && dueDateOf(task.deadline!, task.dueTime).getTime() < Date.now();
 
   function persist(nextProgress: number, nextStatus: TaskStatus) {
     startTransition(async () => {
@@ -44,9 +46,9 @@ export function MemberTaskCard({ task }: { task: Task }) {
           {task.client || "No client"}
         </span>
         {task.deadline ? (
-          <Badge tone={overdue ? "red" : "grey"}>
-            📅 {shortDate(task.deadline)}
-            {overdue ? " · overdue" : ""}
+          <Badge tone={done ? "green" : overdue ? "red" : "grey"}>
+            📅 {dueLabel(task.deadline, task.dueTime)}
+            {!done ? ` · ${countdownLabel(task.deadline, task.dueTime)}` : ""}
           </Badge>
         ) : null}
         <span className="ml-auto flex items-center gap-2">
@@ -62,23 +64,17 @@ export function MemberTaskCard({ task }: { task: Task }) {
 
       <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_220px] sm:items-end">
         <div>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="label">Progress</span>
-            <span className="text-[13px] font-extrabold">{progress}%</span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={progress}
-            disabled={pending}
-            aria-label={`Progress for ${task.title}`}
-            onChange={(event) => {
-              const value = Number(event.target.value);
+          <ProgressSlider
+            taskId={task.id}
+            title={task.title}
+            initialProgress={progress}
+            status={status}
+            onProgressChange={(value) => {
               setProgress(value);
-              persist(value, status);
+              // Keep the status pill honest as the bar is dragged.
+              if (value === 100 && status !== "done") setStatus("done");
+              else if (value < 100 && status === "done") setStatus("in_progress");
             }}
-            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[#e4e7f5] accent-brand"
           />
         </div>
 
@@ -106,9 +102,7 @@ export function MemberTaskCard({ task }: { task: Task }) {
         </div>
       </div>
 
-      <div className="mt-2 h-4 text-[11.5px] font-bold text-ok-dark">
-        {pending ? "Saving…" : saved ? "Saved ✓" : ""}
-      </div>
+      <div className="mt-2 h-4 text-[11.5px] font-bold text-ok-dark">{pending ? "Saving…" : ""}</div>
     </article>
   );
 }

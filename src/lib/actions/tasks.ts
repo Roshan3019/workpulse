@@ -30,6 +30,8 @@ export async function saveTaskAction(formData: FormData): Promise<ActionResult> 
     status: formData.get("status") ?? "pending",
     priority: formData.get("priority") ?? "medium",
     deadline: (formData.get("deadline") as string) || null,
+    startDate: (formData.get("startDate") as string) || null,
+    dueTime: (formData.get("dueTime") as string) || null,
   };
 
   const parsed = taskSchema.safeParse(payload);
@@ -56,6 +58,8 @@ export async function saveTaskAction(formData: FormData): Promise<ActionResult> 
         status: parsed.data.status,
         priority: parsed.data.priority,
         deadline: parsed.data.deadline ?? null,
+        startDate: parsed.data.startDate ?? null,
+        dueTime: parsed.data.dueTime ?? null,
       });
     } else {
       await store.createTask(
@@ -70,6 +74,8 @@ export async function saveTaskAction(formData: FormData): Promise<ActionResult> 
           status: parsed.data.status,
           priority: parsed.data.priority,
           deadline: parsed.data.deadline ?? null,
+          startDate: parsed.data.startDate ?? null,
+          dueTime: parsed.data.dueTime ?? null,
         },
         session.user.id,
       );

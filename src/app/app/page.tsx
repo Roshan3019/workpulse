@@ -5,8 +5,8 @@ import { WorkloadList } from "@/components/dashboard/WorkloadList";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { EmptyState, Section } from "@/components/ui";
 import { getStore } from "@/lib/data";
-import { nextDates, shortDate } from "@/lib/dates";
-import { requireSession } from "@/lib/session";
+import { countdownLabel, dueDateOf, dueLabel, nextDatesIn } from "@/lib/dates";
+import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
 
 export const metadata = { title: "Dashboard" };
@@ -31,16 +31,20 @@ export default async function DashboardPage() {
   const totalHours = openTasks.reduce((sum, t) => sum + Number(t.estHours), 0);
   const doneCount = tasks.filter((t) => t.status === "done").length;
 
-  const dates = nextDates(7);
+  const dates = nextDatesIn(7, await getUserTimeZone());
   const availability = await store.getAvailability(
     orgId,
     freelancers.map((m) => m.userId),
     dates,
   );
 
+  // Sorted by the real due moment (date + time), not just the date string.
   const upcoming = [...openTasks]
     .filter((t) => t.deadline)
-    .sort((a, b) => (a.deadline ?? "").localeCompare(b.deadline ?? ""))
+    .sort(
+      (a, b) =>
+        dueDateOf(a.deadline!, a.dueTime).getTime() - dueDateOf(b.deadline!, b.dueTime).getTime(),
+    )
     .slice(0, 5);
 
   const icon = (paths: React.ReactNode) => (
@@ -142,7 +146,7 @@ export default async function DashboardPage() {
           <ul className="divide-y divide-[#f0f1f7]">
             {upcoming.map((task) => {
               const assignee = members.find((m) => m.userId === task.assigneeId);
-              const overdue = task.deadline && task.deadline < new Date().toISOString().slice(0, 10);
+              const overdue = dueDateOf(task.deadline!, task.dueTime).getTime() < Date.now();
               return (
                 <li key={task.id} className="flex flex-wrap items-center gap-2 py-3 text-[13.5px]">
                   <span className="font-bold">{task.title}</span>
@@ -151,8 +155,7 @@ export default async function DashboardPage() {
                     <span className="text-muted">{assignee?.profile.fullName ?? "Unassigned"}</span>
                     <span className={`pill ${STATUS_TONE[task.status]}`}>{task.status.replace("_", " ")}</span>
                     <span className={`pill ${overdue ? "pill-red" : "pill-grey"}`}>
-                      {shortDate(task.deadline!)}
-                      {overdue ? " · overdue" : ""}
+                      {dueLabel(task.deadline!, task.dueTime)} · {countdownLabel(task.deadline!, task.dueTime)}
                     </span>
                   </span>
                 </li>

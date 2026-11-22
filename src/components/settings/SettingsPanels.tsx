@@ -101,7 +101,7 @@ export function InvitePanel({
           <input
             name="email"
             type="email"
-            placeholder="teammate@studio.com (optional — leave blank for a shareable link)"
+            placeholder="teammate@studio.com  ·  leave blank for a shareable link"
             className="rounded-xl border border-line-2 border-[#dde1ee] px-3.5 py-3 text-sm outline-none focus:border-brand"
           />
           <select name="role" defaultValue="member" className="rounded-xl border border-line-2 px-3.5 py-3 text-sm font-semibold outline-none focus:border-brand">
@@ -119,7 +119,7 @@ export function InvitePanel({
       {state?.error ? <Alert tone="error">{state.error}</Alert> : null}
       {state?.token ? (
         <div className="rounded-xl border border-[#bfe9d6] bg-ok-soft px-3.5 py-3 text-[13px] text-[#065f46]">
-          <b>Invite ready.</b> Share this link:
+          <b>Invite ready.</b> <span className="font-normal">{state.message}</span>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <code className="rounded-lg bg-white px-2 py-1 text-[12px] break-all">{`${origin}/invite/${state.token}`}</code>
             <button type="button" onClick={() => copy(state.token!)} className="rounded-lg bg-white px-2.5 py-1 text-[12px] font-bold text-ok-dark">

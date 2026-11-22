@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Modal, Alert } from "@/components/ui/Modal";
 import { saveTaskAction, type ActionResult } from "@/lib/actions/tasks";
 import type { Member, Task } from "@/lib/types";
-import { todayISO } from "@/lib/dates";
+import { addDays, countdownLabel, todayISO, TIME_PRESETS } from "@/lib/dates";
 
 const initial: ActionResult = {};
 
@@ -36,6 +36,22 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
     if (open) setProgress(task?.progress ?? 0);
   }, [open, task?.progress]);
 
+  // Live timing state so the dialog reflects what you pick, not a static default.
+  const [startDate, setStartDate] = useState(task?.startDate ?? todayISO());
+  const [dueDate, setDueDate] = useState(task?.deadline ?? todayISO());
+  const [dueTime, setDueTime] = useState(task?.dueTime ?? "18:00");
+
+  useEffect(() => {
+    if (!open) return;
+    setStartDate(task?.startDate ?? todayISO());
+    setDueDate(task?.deadline ?? todayISO());
+    setDueTime(task?.dueTime ?? "18:00");
+  }, [open, task?.startDate, task?.deadline, task?.dueTime]);
+
+  const timingSummary = dueDate
+    ? `${countdownLabel(dueDate, dueTime)}${startDate ? ` · ${Math.max(0, Math.round((new Date(dueDate).getTime() - new Date(startDate).getTime()) / 86_400_000))} day window` : ""}`
+    : null;
+
   return (
     <>
       {variant === "icon" ? (
@@ -63,7 +79,7 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
         open={open}
         onClose={() => setOpen(false)}
         title={editing ? "Edit task" : "Assign new task"}
-        subtitle="Give a freelancer a client task with an estimate and deadline. Workload bars update instantly."
+        subtitle="Estimate, schedule and assign in one go. Workload bars update instantly."
         wide
       >
         <form action={action} className="space-y-4">
@@ -101,23 +117,102 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
             <textarea id="description" name="description" rows={2} maxLength={4000} defaultValue={task?.description ?? ""} placeholder="Notes, Drive link, brief…" />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="field">
-              <label htmlFor="estHours">Estimated hours *</label>
-              <input
-                id="estHours"
-                name="estHours"
-                type="number"
-                min={0.25}
-                step={0.25}
-                required
-                defaultValue={task?.estHours ?? ""}
-                placeholder="5"
-              />
+          <div className="field">
+            <label htmlFor="estHours">Estimated hours *</label>
+            <input
+              id="estHours"
+              name="estHours"
+              type="number"
+              min={0.25}
+              step={0.25}
+              required
+              defaultValue={task?.estHours ?? ""}
+              placeholder="5"
+            />
+          </div>
+
+          {/* ---- timing: start → due, with a live countdown ---- */}
+          <div className="rounded-xl border border-line bg-[#fafaff] p-3.5">
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+              <span className="label !mb-0">Timing</span>
+              {timingSummary ? (
+                <span className="rounded-full bg-white px-2.5 py-1 text-[11.5px] font-bold text-brand-dark">
+                  {timingSummary}
+                </span>
+              ) : null}
             </div>
-            <div className="field">
-              <label htmlFor="deadline">Deadline</label>
-              <input id="deadline" name="deadline" type="date" min="2000-01-01" defaultValue={task?.deadline ?? todayISO()} />
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="field">
+                <label htmlFor="startDate">Start</label>
+                <input
+                  id="startDate"
+                  name="startDate"
+                  type="date"
+                  defaultValue={task?.startDate ?? startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="deadline">Due date</label>
+                <input
+                  id="deadline"
+                  name="deadline"
+                  type="date"
+                  min="2000-01-01"
+                  defaultValue={task?.deadline ?? dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="dueTime">Due time</label>
+                <input
+                  id="dueTime"
+                  name="dueTime"
+                  type="time"
+                  defaultValue={task?.dueTime ?? "18:00"}
+                  onChange={(e) => setDueTime(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-faint">Due in:</span>
+              {[
+                { label: "Today", days: 0 },
+                { label: "Tomorrow", days: 1 },
+                { label: "3 days", days: 3 },
+                { label: "1 week", days: 7 },
+                { label: "2 weeks", days: 14 },
+              ].map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => setDueDate(addDays(todayISO(), option.days))}
+                  className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition ${
+                    dueDate === addDays(todayISO(), option.days)
+                      ? "border-brand bg-brand-soft text-brand-dark"
+                      : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+              <span className="ml-1 text-[11px] font-semibold text-faint">· time:</span>
+              {TIME_PRESETS.map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  onClick={() => setDueTime(preset.value)}
+                  className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition ${
+                    dueTime === preset.value
+                      ? "border-brand bg-brand-soft text-brand-dark"
+                      : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
+                  }`}
+                >
+                  {preset.label.split(" · ")[1]}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -150,9 +245,11 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
               type="range"
               min={0}
               max={100}
+              step={5}
               value={progress}
               onChange={(e) => setProgress(Number(e.target.value))}
-              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[#e4e7f5] accent-brand"
+              style={{ ["--fill" as string]: `${progress}%` }}
+              className="range"
             />
           </div>
 
