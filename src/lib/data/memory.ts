@@ -1,6 +1,23 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import type { AvailabilityMap, Invite, Member, Membership, OrgRole, Organization, PlanTier, Profile, Task } from "../types";
+import type {
+  AvailabilityMap,
+  AvailabilityStates,
+  Invite,
+  JoinLink,
+  JoinRequest,
+  Member,
+  Membership,
+  OrgRole,
+  Organization,
+  PlanTier,
+  Profile,
+  SlotState,
+  Task,
+  Team,
+  WeeklyDefault,
+} from "../types";
+import { hoursFromStates, normaliseWeeklyDefault, statesFromHours } from "../availability";
 import { PLANS } from "../types";
 import { seedMemory, type MemoryDatabase } from "./types";
 import type { DataStore, InviteLookup, TaskFilters } from "./types";
@@ -98,6 +115,7 @@ export class MemoryStore implements DataStore {
     let rows = db().tasks.filter((t) => t.orgId === orgId);
     if (filters.onlyForUser) rows = rows.filter((t) => t.assigneeId === filters.onlyForUser);
     if (filters.assigneeId) rows = rows.filter((t) => t.assigneeId === filters.assigneeId);
+    if (filters.teamId) rows = rows.filter((t) => t.teamId === filters.teamId);
     if (filters.status && filters.status !== "all") rows = rows.filter((t) => t.status === filters.status);
     if (filters.search) {
       const q = filters.search.toLowerCase();
@@ -154,6 +172,234 @@ export class MemoryStore implements DataStore {
     const clean = [...new Set(hours)].filter((h) => h >= 0 && h <= 23).sort((a, b) => a - b);
     if (clean.length) map[date] = clean;
     else delete map[date];
+  }
+
+  /* ------------------------------- teams ------------------------------- */
+
+  async listTeams(orgId: string): Promise<Team[]> {
+    return db().teams.filter((t) => t.orgId === orgId);
+  }
+
+  async createTeam(orgId: string, name: string, memberIds: string[]): Promise<Team> {
+    const clean = name.trim();
+    if (!clean) throw new Error("Give the team a name");
+    const existing = db().teams.filter((t) => t.orgId === orgId);
+    const base = slugify(clean) || "team";
+    let slug = base;
+    let n = 1;
+    while (existing.some((t) => t.slug === slug)) slug = `${base}-${++n}`;
+
+    const team: Team = {
+      id: randomUUID(),
+      orgId,
+      name: clean,
+      slug,
+      memberIds: [...new Set(memberIds)],
+      createdAt: new Date().toISOString(),
+    };
+    db().teams.push(team);
+    return team;
+  }
+
+  async updateTeam(orgId: string, teamId: string, patch: { name?: string }): Promise<void> {
+    const team = db().teams.find((t) => t.orgId === orgId && t.id === teamId);
+    if (!team) throw new Error("Team not found");
+    if (patch.name !== undefined) {
+      const clean = patch.name.trim();
+      if (!clean) throw new Error("Give the team a name");
+      team.name = clean;
+    }
+  }
+
+  async deleteTeam(orgId: string, teamId: string): Promise<void> {
+    const d = db();
+    d.teams = d.teams.filter((t) => !(t.orgId === orgId && t.id === teamId));
+    // Mirror ON DELETE SET NULL: tasks survive as studio-wide.
+    for (const task of d.tasks) if (task.teamId === teamId) task.teamId = null;
+  }
+
+  async setTeamMembers(orgId: string, teamId: string, memberIds: string[]): Promise<void> {
+    const team = db().teams.find((t) => t.orgId === orgId && t.id === teamId);
+    if (!team) throw new Error("Team not found");
+    for (const userId of memberIds) {
+      if (!db().memberships.some((m) => m.orgId === orgId && m.userId === userId)) {
+        throw new Error("That person is not a member of this studio");
+      }
+    }
+    team.memberIds = [...new Set(memberIds)];
+  }
+
+  /* ---------------------------- availability ---------------------------- */
+
+  async getAvailabilityStates(
+    orgId: string,
+    userIds: string[],
+    dates: string[],
+  ): Promise<Record<string, AvailabilityStates>> {
+    const out: Record<string, AvailabilityStates> = {};
+    for (const userId of userIds) {
+      const stored = db().availabilityStates[`${orgId}:${userId}`] ?? {};
+      const map: AvailabilityStates = {};
+      for (const date of dates) if (stored[date] && Object.keys(stored[date]).length) map[date] = { ...stored[date] };
+      out[userId] = map;
+    }
+    return out;
+  }
+
+  async saveAvailabilityStates(
+    orgId: string,
+    userId: string,
+    date: string,
+    states: Record<number, SlotState>,
+  ): Promise<void> {
+    const membership = db().memberships.find((m) => m.orgId === orgId && m.userId === userId);
+    if (!membership) throw new Error("Not a member of this organization");
+    if (membership.role !== "member") throw new Error("Availability is only tracked for members");
+    const key = `${orgId}:${userId}`;
+    const store = (db().availabilityStates[key] ??= {});
+    const clean = Object.fromEntries(
+      Object.entries(states).filter(([h, v]) => Number(h) >= 0 && Number(h) <= 23 && (v === "free" || v === "busy")),
+    ) as Record<number, SlotState>;
+    if (Object.keys(clean).length) store[date] = clean;
+    else delete store[date];
+    // Keep the legacy map in step so older read paths stay correct.
+    const legacy = (db().availability[key] ??= {});
+    const hours = hoursFromStates(clean);
+    if (hours.length) legacy[date] = hours;
+    else delete legacy[date];
+  }
+
+  /* ------------------------- join link + requests ------------------------ */
+
+  async getJoinLink(orgId: string): Promise<JoinLink> {
+    const d = db();
+    const existing = d.joinLinks[orgId];
+    if (existing) return existing;
+    const created: JoinLink & { orgName: string } = {
+      orgId,
+      token: randomUUID().replace(/-/g, ""),
+      enabled: true,
+      createdAt: new Date().toISOString(),
+      orgName: d.org.id === orgId ? d.org.name : "Studio",
+    };
+    d.joinLinks[orgId] = created;
+    return created;
+  }
+
+  async setJoinLinkEnabled(orgId: string, enabled: boolean): Promise<void> {
+    const link = await this.getJoinLink(orgId);
+    const stored = db().joinLinks[orgId];
+    if (!stored) return;
+    stored.enabled = enabled;
+    void link;
+  }
+
+  async rotateJoinLink(orgId: string): Promise<JoinLink> {
+    const d = db();
+    const previous = await this.getJoinLink(orgId);
+    const orgName = (d.joinLinks[orgId]?.orgName ?? (d.org.id === orgId ? d.org.name : "Studio"));
+    const next: JoinLink & { orgName: string } = {
+      ...previous,
+      orgName,
+      token: randomUUID().replace(/-/g, ""),
+      enabled: true,
+      createdAt: new Date().toISOString(),
+    };
+    d.joinLinks[orgId] = next;
+    return next;
+  }
+
+  async findJoinLink(token: string): Promise<{ orgId: string; orgName: string; enabled: boolean } | null> {
+    const link = Object.values(db().joinLinks).find((l) => l.token === token);
+    if (!link) return null;
+    return { orgId: link.orgId, orgName: link.orgName, enabled: link.enabled };
+  }
+
+  async requestToJoin(
+    token: string,
+    userId: string,
+    note?: string | null,
+  ): Promise<{ orgId: string; alreadyPending: boolean }> {
+    const link = await this.findJoinLink(token);
+    if (!link) throw new Error("This link is no longer valid");
+    if (!link.enabled) throw new Error("This link is turned off");
+    const d = db();
+    if (d.memberships.some((m) => m.orgId === link.orgId && m.userId === userId)) {
+      throw new Error("You're already in this studio");
+    }
+    const pending = d.joinRequests.find(
+      (r) => r.orgId === link.orgId && r.userId === userId && r.status === "pending",
+    );
+    if (pending) return { orgId: link.orgId, alreadyPending: true };
+
+    const profile = d.profiles.find((p) => p.id === userId);
+    d.joinRequests.push({
+      id: randomUUID(),
+      orgId: link.orgId,
+      userId,
+      profile: profile ?? { id: userId, email: "", fullName: null, avatarUrl: null },
+      note: note?.trim() || null,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      decidedAt: null,
+    });
+    return { orgId: link.orgId, alreadyPending: false };
+  }
+
+  async listJoinRequests(orgId: string): Promise<JoinRequest[]> {
+    return db()
+      .joinRequests.filter((r) => r.orgId === orgId && r.status === "pending")
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async approveJoinRequest(orgId: string, requestId: string): Promise<void> {
+    const d = db();
+    const request = d.joinRequests.find((r) => r.orgId === orgId && r.id === requestId);
+    if (!request || request.status !== "pending") throw new Error("That request is no longer open");
+    if (d.memberships.some((m) => m.orgId === orgId && m.userId === request.userId)) {
+      throw new Error("They're already in this studio");
+    }
+    if (d.memberships.filter((m) => m.orgId === orgId).length >= d.org.seatLimit) {
+      throw new Error("This studio has reached its seat limit. Upgrade the plan first.");
+    }
+    d.memberships.push({
+      id: randomUUID(),
+      orgId,
+      userId: request.userId,
+      role: "member",
+      capacity: 40,
+    });
+    request.status = "approved";
+    request.decidedAt = new Date().toISOString();
+  }
+
+  async declineJoinRequest(orgId: string, requestId: string): Promise<void> {
+    const request = db().joinRequests.find((r) => r.orgId === orgId && r.id === requestId);
+    if (!request || request.status !== "pending") throw new Error("That request is no longer open");
+    request.status = "declined";
+    request.decidedAt = new Date().toISOString();
+  }
+
+  async getMyJoinRequest(orgId: string, userId: string): Promise<JoinRequest | null> {
+    return (
+      db().joinRequests.find((r) => r.orgId === orgId && r.userId === userId && r.status === "pending") ?? null
+    );
+  }
+
+  /* --------------------------- weekly default --------------------------- */
+
+  async getWeeklyDefault(orgId: string, userId: string): Promise<WeeklyDefault | null> {
+    return db().weeklyDefaults[`${orgId}:${userId}`] ?? null;
+  }
+
+  async setWeeklyDefault(orgId: string, userId: string, week: WeeklyDefault | null): Promise<void> {
+    const membership = db().memberships.find((m) => m.orgId === orgId && m.userId === userId);
+    if (!membership) throw new Error("Not a member of this organization");
+    if (membership.role !== "member") throw new Error("Availability is only tracked for members");
+    const key = `${orgId}:${userId}`;
+    const clean = normaliseWeeklyDefault(week);
+    if (Object.keys(clean).length) db().weeklyDefaults[key] = clean;
+    else delete db().weeklyDefaults[key];
   }
 
   async listInvites(orgId: string): Promise<Invite[]> {
@@ -213,4 +459,15 @@ export class MemoryStore implements DataStore {
     inv.acceptedAt = new Date().toISOString();
     return inv;
   }
+}
+
+/** Kept in step with the Supabase store's slug rules. */
+function slugify(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
 }

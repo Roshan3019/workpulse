@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { getStore } from "../data";
 import { requireSession } from "../session";
-import { availabilitySchema } from "../validation";
+import { availabilitySchema, availabilityStatesSchema } from "../validation";
+import type { SlotState } from "../types";
 
 export type ActionResult = { error?: string; ok?: boolean };
 
@@ -60,5 +61,37 @@ export async function bulkSaveAvailabilityAction(entries: { date: string; hours:
   }
   revalidatePath("/app/availability");
   revalidatePath("/app");
+  return { ok: true };
+}
+
+/**
+ * Save several days of tri-state availability at once — the shape the
+ * AvailabilityGrid posts. Empty days clear the row.
+ */
+export async function bulkSaveAvailabilityStatesAction(
+  entries: { date: string; states: Record<number, SlotState> }[],
+): Promise<ActionResult> {
+  const session = await requireSession();
+  if (session.membership.role !== "member") {
+    return { error: "Availability is only tracked for members." };
+  }
+  const store = getStore();
+  try {
+    for (const entry of entries) {
+      const parsed = availabilityStatesSchema.safeParse(entry);
+      if (!parsed.success) continue;
+      await store.saveAvailabilityStates(
+        session.organization.id,
+        session.membership.userId,
+        parsed.data.date,
+        parsed.data.states as Record<number, SlotState>,
+      );
+    }
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+  revalidatePath("/app/availability");
+  revalidatePath("/app");
+  revalidatePath("/app/admin");
   return { ok: true };
 }

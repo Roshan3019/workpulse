@@ -19,9 +19,9 @@ export function WorkloadList({ members, tasks }: { members: Member[]; tasks: Tas
       action={<Badge tone="grey">{members.length} freelancers</Badge>}
     >
       {rows.length === 0 ? (
-        <EmptyState title="No freelancers yet" hint="Invite your team from Settings — they'll appear here instantly." icon="👥" />
+        <EmptyState title="No freelancers yet" hint="Invite your team from Settings and they'll appear here instantly." />
       ) : (
-        <div className="divide-y divide-[#f0f1f7]">
+        <div className="divide-y divide-[#efece6]">
           {rows.map((row) => {
             const label = UTILISATION_LABEL[row.state];
             const tone = UTILISATION_TONE[row.state];
@@ -56,7 +56,7 @@ export function WorkloadList({ members, tasks }: { members: Member[]; tasks: Tas
 
                 <div className="flex items-center gap-2.5 md:justify-end">
                   <Badge tone={tone}>{label}</Badge>
-                  <span className="text-[15px] font-extrabold">{row.utilisation}%</span>
+                  <span className="text-[14px] font-semibold tabular-nums">{row.utilisation}%</span>
                 </div>
               </div>
             );

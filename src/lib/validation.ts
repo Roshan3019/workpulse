@@ -47,6 +47,8 @@ export const taskSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Pick a valid time")
     .nullable()
     .optional(),
+  /** Empty string or "none" means studio-wide; the action normalises it to null. */
+  teamId: z.union([z.string().uuid(), z.literal(""), z.literal("none")]).nullable().optional(),
 });
 
 export const memberProgressSchema = z.object({
@@ -69,8 +71,23 @@ export const availabilitySchema = z.object({
   hours: z.array(z.coerce.number().int().min(0).max(23)).max(24),
 });
 
+/** Tri-state replacement for availabilitySchema: hour -> free | busy. */
+export const availabilityStatesSchema = z.object({
+  date: isoDate,
+  states: z.record(
+    z.string().regex(/^(\d|1\d|2[0-3])$/),
+    z.enum(["free", "busy"]),
+  ),
+});
+
 export const planSchema = z.enum(["free", "pro", "business"]);
 
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type TaskInput = z.infer<typeof taskSchema>;
+
+/** A studio team: a name plus the people in it. */
+export const teamSchema = z.object({
+  name: z.string().trim().min(1, "Give the team a name").max(60, "Keep it under 60 characters"),
+  memberIds: z.array(z.string().uuid()).max(200).default([]),
+});

@@ -6,6 +6,7 @@ import { getStore } from "@/lib/data";
 import { nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
+import { countStates } from "@/lib/availability";
 
 export const metadata = { title: "My tasks" };
 export const dynamic = "force-dynamic";
@@ -27,8 +28,11 @@ export default async function MyTasksPage() {
   const done = tasks.filter((t) => t.status === "done");
 
   const dates = nextDatesIn(7, tz);
-  const availability = await store.getAvailability(orgId, [session.membership.userId], dates);
-  const freeNext7 = dates.reduce((sum, d) => sum + (availability[session.membership.userId]?.[d]?.length ?? 0), 0);
+  const availability = await store.getAvailabilityStates(orgId, [session.membership.userId], dates);
+  const freeNext7 = dates.reduce(
+    (sum, d) => sum + countStates(availability[session.membership.userId]?.[d] ?? {}).free,
+    0,
+  );
   const assignedHours = active.reduce((sum, t) => sum + Number(t.estHours), 0);
   const utilisation = session.membership.capacity
     ? Math.round((assignedHours / session.membership.capacity) * 100)
@@ -53,13 +57,13 @@ export default async function MyTasksPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="card p-4">
           <div className="label">Assigned hours</div>
-          <div className="mt-1.5 text-[26px] leading-none font-extrabold">{assignedHours}h</div>
+          <div className="mt-1.5 text-[24px] leading-none font-semibold tabular-nums">{assignedHours}h</div>
           <div className="mt-1 text-[12px] text-faint">of {session.membership.capacity}h capacity</div>
         </div>
         <div className="card p-4">
           <div className="label">Utilisation</div>
           <div className="mt-1.5 flex items-center gap-2">
-            <span className="text-[26px] leading-none font-extrabold">{utilisation}%</span>
+            <span className="text-[24px] leading-none font-semibold tabular-nums">{utilisation}%</span>
             <Badge tone={utilisation >= 100 ? "red" : utilisation >= 75 ? "amber" : "green"}>
               {utilisation >= 100 ? "Overloaded" : utilisation >= 75 ? "Busy" : "Available"}
             </Badge>
@@ -68,14 +72,14 @@ export default async function MyTasksPage() {
         </div>
         <div className="card p-4">
           <div className="label">Free next 7 days</div>
-          <div className="mt-1.5 text-[26px] leading-none font-extrabold">{freeNext7}h</div>
+          <div className="mt-1.5 text-[24px] leading-none font-semibold tabular-nums">{freeNext7}h</div>
           <div className="mt-1 text-[12px] text-faint">From your availability calendar</div>
         </div>
       </div>
 
       {active.length === 0 ? (
         <div className="card">
-          <EmptyState title="All clear 🎉" hint="No active tasks. Enjoy the breathing room." icon="🌴" />
+          <EmptyState title="All clear" hint="No active tasks. Enjoy the breathing room." />
         </div>
       ) : (
         <div className="space-y-4">
@@ -87,7 +91,7 @@ export default async function MyTasksPage() {
 
       {done.length ? (
         <details className="card p-5">
-          <summary className="cursor-pointer text-[14px] font-extrabold text-ink-2">
+          <summary className="cursor-pointer text-[13px] font-medium text-ink-2">
             Completed ({done.length})
           </summary>
           <div className="mt-4 space-y-4">

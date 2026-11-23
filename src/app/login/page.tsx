@@ -35,19 +35,19 @@ export default async function LoginPage({ searchParams }: { searchParams: LoginS
       <main className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-8 lg:grid-cols-[1.05fr_.95fr] lg:py-16">
         <div className="hidden lg:block">
           <Badge tone="indigo">Team availability, decoded</Badge>
-          <h1 className="mt-5 text-[46px] leading-[1.06] font-extrabold tracking-[-0.025em]">
+          <h1 className="mt-5 text-[46px] leading-[1.06] font-semibold tracking-[-0.025em]">
             Know exactly <span className="text-brand">who&apos;s free</span>, who&apos;s slammed, and who&apos;s
             shipping.
           </h1>
           <p className="mt-5 max-w-lg text-[15.5px] leading-relaxed text-muted">
             WorkPulse gives you a live weekly view of every freelancer&apos;s free hours, the client work on their
-            plate, and how close each task is to done — all in one place.
+            plate, and how close each task is to done, all in one place.
           </p>
           <div className="mt-7 flex flex-wrap gap-2.5">
-            {["👥 Team workload", "🕐 Weekly hours", "⚡ Live status", "📅 Client tasks"].map((chip) => (
+            {["Team workload", "Weekly hours", "Live status", "Client tasks"].map((chip) => (
               <span
                 key={chip}
-                className="rounded-full border border-line bg-white px-3.5 py-2 text-[13px] font-semibold text-ink-2 shadow-[0_1px_3px_rgba(16,24,40,.05)]"
+                className="rounded-md border border-line bg-white px-2.5 py-1 text-[12px] font-medium text-ink-2"
               >
                 {chip}
               </span>
@@ -56,7 +56,7 @@ export default async function LoginPage({ searchParams }: { searchParams: LoginS
         </div>
 
         <div className="card mx-auto w-full max-w-md p-6 sm:p-8">
-          <h2 className="text-[22px] font-extrabold tracking-[-0.01em]">Sign in to continue</h2>
+          <h2 className="text-[19px] font-semibold tracking-[-0.015em]">Sign in to continue</h2>
           <p className="mt-1.5 mb-6 text-[13.5px] leading-relaxed text-muted">
             Use your work account. Team admins land on the workload dashboard, freelancers get their own view.
           </p>
@@ -78,7 +78,7 @@ export default async function LoginPage({ searchParams }: { searchParams: LoginS
                   <form key={user.id} action={demoSignIn.bind(null, user.id)}>
                     <button
                       type="submit"
-                      className="flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition hover:border-line hover:bg-[#fafaff]"
+                      className="flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition hover:border-line hover:bg-[#fbfaf8]"
                     >
                       <Avatar id={user.id} name={user.fullName} email={user.email} />
                       <span className="min-w-0 flex-1">

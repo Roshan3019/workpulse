@@ -1,15 +1,22 @@
 import type {
   AvailabilityMap,
+  AvailabilityStates,
   Invite,
+  JoinLink,
+  JoinRequest,
   Member,
   Membership,
   OrgRole,
   Organization,
   PlanTier,
   Profile,
+  SlotState,
   Task,
+  Team,
+  WeeklyDefault,
 } from "../types";
 import { nextDates, todayISO } from "../dates";
+import { statesFromHours } from "../availability";
 
 /**
  * What an invite link needs to show before the visitor has an account:
@@ -30,6 +37,8 @@ export interface TaskFilters {
   search?: string;
   /** when set, only tasks assigned to this user (member view) */
   onlyForUser?: string;
+  /** when set, only tasks on this team (team dashboard) */
+  teamId?: string;
 }
 
 /**
@@ -57,9 +66,24 @@ export interface DataStore {
   updateTask(orgId: string, taskId: string, patch: Partial<Task>): Promise<void>;
   deleteTask(orgId: string, taskId: string): Promise<void>;
 
+  // teams ------------------------------------------------------------------
+  listTeams(orgId: string): Promise<Team[]>;
+  createTeam(orgId: string, name: string, memberIds: string[]): Promise<Team>;
+  updateTeam(orgId: string, teamId: string, patch: { name?: string }): Promise<void>;
+  deleteTeam(orgId: string, teamId: string): Promise<void>;
+  /** Replace the whole roster in one go — the edit dialog sends a set. */
+  setTeamMembers(orgId: string, teamId: string, memberIds: string[]): Promise<void>;
+
   // availability -----------------------------------------------------------
+  /** @deprecated legacy shape; use getAvailabilityStates */
   getAvailability(orgId: string, userIds: string[], dates: string[]): Promise<Record<string, AvailabilityMap>>;
+  /** @deprecated legacy shape; use saveAvailabilityStates */
   saveAvailability(orgId: string, userId: string, date: string, hours: number[]): Promise<void>;
+
+  /** Tri-state availability for a set of people across a set of dates. */
+  getAvailabilityStates(orgId: string, userIds: string[], dates: string[]): Promise<Record<string, AvailabilityStates>>;
+  /** Persist one day of tri-state availability. Empty map deletes the row. */
+  saveAvailabilityStates(orgId: string, userId: string, date: string, states: Record<number, SlotState>): Promise<void>;
 
   // invites ----------------------------------------------------------------
   listInvites(orgId: string): Promise<Invite[]>;
@@ -67,6 +91,31 @@ export interface DataStore {
   getInviteByToken(token: string): Promise<InviteLookup | null>;
   createInvite(orgId: string, email: string, role: OrgRole): Promise<Invite>;
   revokeInvite(orgId: string, inviteId: string): Promise<void>;
+
+  // join link + requests ---------------------------------------------------
+  /** The studio's single shareable link, created on first read. */
+  getJoinLink(orgId: string): Promise<JoinLink>;
+  /** Turn the common link on/off without changing its token. */
+  setJoinLinkEnabled(orgId: string, enabled: boolean): Promise<void>;
+  /** Rotate the token — every previously shared link stops working. */
+  rotateJoinLink(orgId: string): Promise<JoinLink>;
+  /** Resolve a join link by token for the public landing page. */
+  findJoinLink(token: string): Promise<{ orgId: string; orgName: string; enabled: boolean } | null>;
+  /** The signed-in person asks to join. Idempotent while a request is pending. */
+  requestToJoin(token: string, userId: string, note?: string | null): Promise<{ orgId: string; alreadyPending: boolean }>;
+  /** Admin inbox. `pending` only, oldest first. */
+  listJoinRequests(orgId: string): Promise<JoinRequest[]>;
+  /** Approve: creates the membership as a member. Returns the userId admitted. */
+  approveJoinRequest(orgId: string, requestId: string): Promise<void>;
+  declineJoinRequest(orgId: string, requestId: string): Promise<void>;
+  /** The signed-in person's outstanding request, for the "waiting" screen. */
+  getMyJoinRequest(orgId: string, userId: string): Promise<JoinRequest | null>;
+
+  // weekly default ---------------------------------------------------------
+  /** The member's reusable week, or null when they haven't set one. */
+  getWeeklyDefault(orgId: string, userId: string): Promise<WeeklyDefault | null>;
+  /** Replace (or, with null, clear) the template. Dated days are never touched. */
+  setWeeklyDefault(orgId: string, userId: string, week: WeeklyDefault | null): Promise<void>;
 }
 
 /* ==========================================================================
@@ -100,10 +149,17 @@ export interface MemoryDatabase {
   org: Organization;
   profiles: Profile[];
   memberships: Membership[];
+  teams: Team[];
   tasks: Task[];
-  /** key: `${orgId}:${userId}` */
+  /** key: `${orgId}:${userId}` — legacy hours shape, kept in sync */
   availability: Record<string, AvailabilityMap>;
+  /** key: `${orgId}:${userId}` — tri-state source of truth */
+  availabilityStates: Record<string, Record<string, Record<number, SlotState>>>;
   invites: (Invite & { orgId: string })[];
+  joinLinks: Record<string, JoinLink & { orgName: string }>;
+  joinRequests: JoinRequest[];
+  /** key: `${orgId}:${userId}` */
+  weeklyDefaults: Record<string, WeeklyDefault>;
   demoUsers: (Profile & { role: OrgRole; capacity: number })[];
 }
 
@@ -131,18 +187,22 @@ export function seedMemory(): MemoryDatabase {
     capacity: u.capacity,
   }));
 
+  // Declared before the tasks so each task's teamId refers to something real.
+  const TEAM_WEB_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
+  const TEAM_BRAND_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
+
   const d = (n: number) => nextDates(Math.max(n, 0) + 1)[n] ?? todayISO();
   const tasks: Task[] = [
-    { id: "t1", orgId: org.id, title: "Designing Website", client: "Qween", description: "Refer Bluestone Website — hero, pricing and case-study pages.", assigneeId: U.aarav, estHours: 12, progress: 55, status: "in_progress", priority: "high", deadline: d(2), startDate: d(0), dueTime: "10:00", createdAt: new Date().toISOString() },
-    { id: "t2", orgId: org.id, title: "Brand Identity Refresh", client: "Bluestone", description: "Logo variants, type scale and a 12-page brand guide.", assigneeId: U.priya, estHours: 9, progress: 30, status: "in_progress", priority: "medium", deadline: d(4), startDate: d(2), dueTime: "14:00", createdAt: new Date().toISOString() },
-    { id: "t3", orgId: org.id, title: "Landing Page Build", client: "Cinegem Studio", description: "Next.js marketing page with CMS-driven sections.", assigneeId: U.testMember, estHours: 16, progress: 10, status: "pending", priority: "high", deadline: d(6), startDate: d(4), dueTime: "16:00", createdAt: new Date().toISOString() },
-    { id: "t4", orgId: org.id, title: "Mobile App UI", client: "Qween", description: "Onboarding flow + dashboard screens for iOS and Android.", assigneeId: U.roshan2, estHours: 20, progress: 65, status: "in_progress", priority: "high", deadline: d(3), startDate: d(1), dueTime: "17:30", createdAt: new Date().toISOString() },
-    { id: "t5", orgId: org.id, title: "SEO Audit Report", client: "Northlight Films", description: "Technical audit with prioritised fixes and keyword gaps.", assigneeId: U.neha, estHours: 6, progress: 100, status: "done", priority: "low", deadline: d(-2), startDate: d(-2), dueTime: "10:00", createdAt: new Date().toISOString() },
-    { id: "t6", orgId: org.id, title: "Product Photoshoot Retouch", client: "Bluestone", description: "42 product shots — background cleanup and colour match.", assigneeId: U.kabir, estHours: 14, progress: 40, status: "in_progress", priority: "medium", deadline: d(5), startDate: d(3), dueTime: "18:00", createdAt: new Date().toISOString() },
-    { id: "t7", orgId: org.id, title: "Q3 Client Deck", client: "Qween", description: "12-slide results deck with charts from the analytics export.", assigneeId: U.aarav, estHours: 5, progress: 0, status: "pending", priority: "medium", deadline: d(8), startDate: d(6), dueTime: "17:30", createdAt: new Date().toISOString() },
-    { id: "t8", orgId: org.id, title: "Website QA Pass", client: "Cinegem Studio", description: "Cross-browser QA, accessibility checks, bug list.", assigneeId: U.testMember, estHours: 4, progress: 0, status: "pending", priority: "low", deadline: d(9), startDate: d(7), dueTime: "13:00", createdAt: new Date().toISOString() },
-    { id: "t9", orgId: org.id, title: "Newsletter Template", client: "Northlight Films", description: "Responsive email template, dark + light variants.", assigneeId: U.neha, estHours: 3, progress: 100, status: "done", priority: "low", deadline: d(-5), startDate: d(-5), dueTime: "16:00", createdAt: new Date().toISOString() },
-    { id: "t10", orgId: org.id, title: "Pricing Page Copy", client: "Bluestone", description: "Rewrite pricing tiers and FAQ, tone: confident and plain.", assigneeId: U.priya, estHours: 4, progress: 0, status: "pending", priority: "high", deadline: d(1), startDate: d(-1), dueTime: "11:00", createdAt: new Date().toISOString() },
+    { id: "t1", orgId: org.id, title: "Designing Website", client: "Qween", description: "Refer Bluestone Website — hero, pricing and case-study pages.", assigneeId: U.aarav, teamId: TEAM_WEB_ID, estHours: 12, progress: 55, status: "in_progress", priority: "high", deadline: d(2), startDate: d(0), dueTime: "10:00", createdAt: new Date().toISOString() },
+    { id: "t2", orgId: org.id, title: "Brand Identity Refresh", client: "Bluestone", description: "Logo variants, type scale and a 12-page brand guide.", assigneeId: U.priya, teamId: TEAM_BRAND_ID, estHours: 9, progress: 30, status: "in_progress", priority: "medium", deadline: d(4), startDate: d(2), dueTime: "14:00", createdAt: new Date().toISOString() },
+    { id: "t3", orgId: org.id, title: "Landing Page Build", client: "Cinegem Studio", description: "Next.js marketing page with CMS-driven sections.", assigneeId: U.testMember, teamId: null, estHours: 16, progress: 10, status: "pending", priority: "high", deadline: d(6), startDate: d(4), dueTime: "16:00", createdAt: new Date().toISOString() },
+    { id: "t4", orgId: org.id, title: "Mobile App UI", client: "Qween", description: "Onboarding flow + dashboard screens for iOS and Android.", assigneeId: U.roshan2, teamId: TEAM_BRAND_ID, estHours: 20, progress: 65, status: "in_progress", priority: "high", deadline: d(3), startDate: d(1), dueTime: "17:30", createdAt: new Date().toISOString() },
+    { id: "t5", orgId: org.id, title: "SEO Audit Report", client: "Northlight Films", description: "Technical audit with prioritised fixes and keyword gaps.", assigneeId: U.neha, teamId: TEAM_WEB_ID, estHours: 6, progress: 100, status: "done", priority: "low", deadline: d(-2), startDate: d(-2), dueTime: "10:00", createdAt: new Date().toISOString() },
+    { id: "t6", orgId: org.id, title: "Product Photoshoot Retouch", client: "Bluestone", description: "42 product shots — background cleanup and colour match.", assigneeId: U.kabir, teamId: TEAM_BRAND_ID, estHours: 14, progress: 40, status: "in_progress", priority: "medium", deadline: d(5), startDate: d(3), dueTime: "18:00", createdAt: new Date().toISOString() },
+    { id: "t7", orgId: org.id, title: "Q3 Client Deck", client: "Qween", description: "12-slide results deck with charts from the analytics export.", assigneeId: U.aarav, teamId: TEAM_WEB_ID, estHours: 5, progress: 0, status: "pending", priority: "medium", deadline: d(8), startDate: d(6), dueTime: "17:30", createdAt: new Date().toISOString() },
+    { id: "t8", orgId: org.id, title: "Website QA Pass", client: "Cinegem Studio", description: "Cross-browser QA, accessibility checks, bug list.", assigneeId: U.testMember, teamId: null, estHours: 4, progress: 0, status: "pending", priority: "low", deadline: d(9), startDate: d(7), dueTime: "13:00", createdAt: new Date().toISOString() },
+    { id: "t9", orgId: org.id, title: "Newsletter Template", client: "Northlight Films", description: "Responsive email template, dark + light variants.", assigneeId: U.neha, teamId: TEAM_WEB_ID, estHours: 3, progress: 100, status: "done", priority: "low", deadline: d(-5), startDate: d(-5), dueTime: "16:00", createdAt: new Date().toISOString() },
+    { id: "t10", orgId: org.id, title: "Pricing Page Copy", client: "Bluestone", description: "Rewrite pricing tiers and FAQ, tone: confident and plain.", assigneeId: U.priya, teamId: TEAM_BRAND_ID, estHours: 4, progress: 0, status: "pending", priority: "high", deadline: d(1), startDate: d(-1), dueTime: "11:00", createdAt: new Date().toISOString() },
   ];
 
   // Availability: weekday 9–5 for most, with realistic gaps.
@@ -156,22 +216,66 @@ export function seedMemory(): MemoryDatabase {
     [U.neha]: (i) => (i % 3 === 0 ? [12, 13, 14] : [9, 10, 11]),
     [U.kabir]: (i) => (i % 4 === 0 ? [6, 7, 8, 9, 10] : [15, 16, 17, 18, 19]),
   };
+  const availabilityStates: Record<string, Record<string, Record<number, SlotState>>> = {};
   for (const [userId, fn] of Object.entries(patterns)) {
     const map: AvailabilityMap = {};
+    const tri: Record<string, Record<number, SlotState>> = {};
     dates.forEach((date, i) => {
       const hours = fn(i);
-      if (hours.length) map[date] = hours;
+      if (!hours.length) return;
+      map[date] = hours;
+      // Seed a few explicit "busy" hours so the demo shows all three states,
+      // not just free/unassigned.
+      const states = statesFromHours(hours);
+      if (i % 2 === 0) for (let h = 18; h <= 20; h++) states[h] = "busy";
+      tri[date] = states;
     });
     availability[`${org.id}:${userId}`] = map;
+    availabilityStates[`${org.id}:${userId}`] = tri;
   }
+
+  // Two teams, so the dashboard switcher has something real to switch between.
+  const now = new Date().toISOString();
+  const teams: Team[] = [
+    {
+      id: TEAM_WEB_ID,
+      orgId: org.id,
+      name: "Web",
+      slug: "web",
+      memberIds: [U.aarav, U.neha],
+      createdAt: now,
+    },
+    {
+      id: TEAM_BRAND_ID,
+      orgId: org.id,
+      name: "Branding",
+      slug: "branding",
+      memberIds: [U.priya, U.kabir, U.roshan2],
+      createdAt: now,
+    },
+  ];
 
   return {
     org,
     profiles,
     memberships,
+    teams,
     tasks,
     availability,
+    availabilityStates,
     invites: [],
+    // Seeded so the share flow is demoable without creating one first.
+    weeklyDefaults: {},
+    joinLinks: {
+      [org.id]: {
+        orgId: org.id,
+        token: "demo-join-link-token",
+        enabled: true,
+        createdAt: now,
+        orgName: org.name,
+      },
+    },
+    joinRequests: [],
     demoUsers: DEMO_USERS,
   };
 }

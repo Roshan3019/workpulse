@@ -3,9 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert } from "@/components/ui/Modal";
-import { bulkSaveAvailabilityAction } from "@/lib/actions/availability";
+import { bulkSaveAvailabilityStatesAction } from "@/lib/actions/availability";
+import {
+  cellState,
+  countStates,
+  hoursFromStates,
+  setCell,
+  statesFromHours,
+  type CellState,
+} from "@/lib/availability";
 import { HOURS, PRESETS, hourLabel, shortDate, todayISO, todayISOIn, weekdayOf, fromISODate, rangesText } from "@/lib/dates";
-import type { AvailabilityMap } from "@/lib/types";
+import type { AvailabilityStates, SlotState } from "@/lib/types";
 
 type Mode = "edit" | "read";
 
@@ -30,7 +38,7 @@ export function AvailabilityGrid({
   today: serverToday,
 }: {
   dates: string[];
-  initial: AvailabilityMap;
+  initial: AvailabilityStates;
   mode: Mode;
   emptyHint?: string;
   /** The user's local today, computed on the server from the wp_tz cookie. */
@@ -38,11 +46,16 @@ export function AvailabilityGrid({
 }) {
   const router = useRouter();
   const editable = mode === "edit";
-  const [map, setMap] = useState<AvailabilityMap>(() => ({ ...initial }));
+  const [map, setMap] = useState<AvailabilityStates>(() => ({ ...initial }));
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const [brush, setBrush] = useState<"free" | "busy">("free");
+  /*
+   * The paint tool. `unassigned` is a first-class brush: the client asked for
+   * three buttons, so erasing is a deliberate action rather than a hidden
+   * side effect of starting a drag on a green cell.
+   */
+  const [brush, setBrush] = useState<CellState>("free");
 
   // Date helpers below compare against "today". Recompute it from the browser
   // clock so a tab left open past midnight ticks over with the real date.
@@ -66,10 +79,21 @@ export function AvailabilityGrid({
   /** next 7 days from today, so the page is about *this* week. */
   const days = useMemo(() => dates.slice(0, 7), [dates]);
 
-  const totalFor = useCallback((date: string) => (map[date] ?? []).length, [map]);
-  const weekTotal = useMemo(() => days.reduce((sum, d) => sum + (map[d]?.length ?? 0), 0), [days, map]);
+  const totalFor = useCallback((date: string) => countStates(map[date] ?? {}).free, [map]);
+  const weekTotal = useMemo(
+    () => days.reduce((sum, d) => sum + countStates(map[d] ?? {}).free, 0),
+    [days, map],
+  );
+  const weekBusy = useMemo(
+    () => days.reduce((sum, d) => sum + countStates(map[d] ?? {}).busy, 0),
+    [days, map],
+  );
+  const weekUnassigned = useMemo(
+    () => days.reduce((sum, d) => sum + countStates(map[d] ?? {}).unassigned, 0),
+    [days, map],
+  );
 
-  const paintCell = useCallback((el: HTMLElement, free: boolean) => {
+  const paintCell = useCallback((el: HTMLElement, next: CellState) => {
     const date = el.dataset.date;
     const hour = Number(el.dataset.hour);
     if (!date || Number.isNaN(hour)) return;
@@ -78,14 +102,13 @@ export function AvailabilityGrid({
     painted.current.add(key);
 
     setMap((prev) => {
-      const current = new Set(prev[date] ?? []);
-      if (free) current.add(hour);
-      else current.delete(hour);
-      const nextHours = [...current].sort((a, b) => a - b);
-      const next = { ...prev };
-      if (nextHours.length) next[date] = nextHours;
-      else delete next[date];
-      return next;
+      const day = { ...(prev[date] ?? {}) };
+      if (next === "unassigned") delete day[hour];
+      else day[hour] = next as SlotState;
+      const out = { ...prev };
+      if (Object.keys(day).length) out[date] = day;
+      else delete out[date];
+      return out;
     });
     setDirty(true);
   }, []);
@@ -98,7 +121,7 @@ export function AvailabilityGrid({
       const cell = target?.closest<HTMLElement>(".cell");
       if (cell && cell.dataset.readonly !== "true") {
         event.preventDefault();
-        paintCell(cell, brush === "free");
+        paintCell(cell, brush);
       }
     };
     const onUp = () => {
@@ -119,20 +142,24 @@ export function AvailabilityGrid({
   function onCellPointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (!editable) return;
     event.preventDefault();
-    const el = event.currentTarget;
-    // Starting on green erases, starting on grey adds — same as a paint tool.
-    const free = el.dataset.free !== "true";
+    // The brush decides what happens — clicking never silently reverses it.
     painted.current.clear();
     dragging.current = true;
-    paintCell(el, free);
+    paintCell(event.currentTarget, brush);
   }
 
-  function setDay(date: string, hours: readonly number[]) {
+  /** Paint a whole day with the current brush (or clear it). */
+  function setDay(date: string, next: CellState) {
     setMap((prev) => {
-      const next = { ...prev };
-      if (hours.length) next[date] = [...hours];
-      else delete next[date];
-      return next;
+      const out = { ...prev };
+      if (next === "unassigned") {
+        delete out[date];
+        return out;
+      }
+      const day: Record<number, SlotState> = {};
+      for (const hour of VISIBLE_HOURS) day[hour] = next as SlotState;
+      out[date] = day;
+      return out;
     });
     setDirty(true);
     setMessage(null);
@@ -141,12 +168,12 @@ export function AvailabilityGrid({
   /** Apply a preset to every weekday (Mon–Fri) — the shortcut people actually want. */
   function applyToWeekdays(hours: readonly number[]) {
     setMap((prev) => {
-      const next = { ...prev };
+      const out = { ...prev };
       for (const date of days) {
         const dow = fromISODate(date).getDay();
-        if (dow >= 1 && dow <= 5) next[date] = [...hours];
+        if (dow >= 1 && dow <= 5) out[date] = statesFromHours(hours);
       }
-      return next;
+      return out;
     });
     setDirty(true);
     setMessage({ tone: "success", text: "Applied to Monday–Friday. Don't forget to save." });
@@ -155,8 +182,8 @@ export function AvailabilityGrid({
   async function save() {
     setSaving(true);
     setMessage(null);
-    const entries = days.map((date) => ({ date, hours: map[date] ?? [] }));
-    const result = await bulkSaveAvailabilityAction(entries);
+    const entries = days.map((date) => ({ date, states: map[date] ?? {} }));
+    const result = await bulkSaveAvailabilityStatesAction(entries);
     setSaving(false);
     if (result.error) {
       setMessage({ tone: "error", text: result.error });
@@ -167,34 +194,45 @@ export function AvailabilityGrid({
     }
   }
 
-  const isEmptyWeek = weekTotal === 0;
+  const isEmptyWeek = weekTotal === 0 && weekBusy === 0;
 
   return (
     <div>
       {/* ---------------- toolbar: one row, obvious ---------------- */}
       {editable ? (
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="mr-1 inline-flex rounded-full border border-line-2 bg-white p-0.5">
-            <button
-              type="button"
-              onClick={() => setBrush("free")}
-              aria-pressed={brush === "free"}
-              className={`rounded-full px-3 py-1.5 text-[12.5px] font-bold transition ${
-                brush === "free" ? "bg-ok-soft text-ok-dark" : "text-muted hover:text-ink"
-              }`}
-            >
-              ✓ Mark free
-            </button>
-            <button
-              type="button"
-              onClick={() => setBrush("busy")}
-              aria-pressed={brush === "busy"}
-              className={`rounded-full px-3 py-1.5 text-[12.5px] font-bold transition ${
-                brush === "busy" ? "bg-[#eef1f8] text-ink-2" : "text-muted hover:text-ink"
-              }`}
-            >
-              ✕ Mark busy
-            </button>
+          {/*
+            Three buttons, one per state — the client asked for exactly this.
+            Green = free, light red = busy, grey = not filled in. The selected
+            one is filled with its own colour; the others stay quiet.
+          */}
+          <div
+            className="inline-flex items-center gap-1 rounded-xl border border-line-2 bg-white p-1"
+            role="group"
+            aria-label="What to paint"
+          >
+            {([
+              { value: "free", label: "Free", dot: "bg-ok", on: "bg-ok-soft text-ok-dark ring-1 ring-ok/40", ring: "ring-ok/40" },
+              { value: "busy", label: "Busy", dot: "bg-bad/70", on: "bg-bad-soft text-[#991b1b] ring-1 ring-bad/30", ring: "ring-bad/30" },
+              { value: "unassigned", label: "Unassigned", dot: "bg-line-2", on: "bg-[#f2efea] text-ink-2 ring-1 ring-line-2", ring: "ring-line-2" },
+            ] as const).map((option) => {
+              const active = brush === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setBrush(option.value)}
+                  aria-pressed={active}
+                  title={`Paint ${option.label.toLowerCase()}`}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors duration-150 ${
+                    active ? option.on : "text-muted hover:bg-[#f8f6f3] hover:text-ink-2"
+                  }`}
+                >
+                  <i className={`h-2.5 w-2.5 rounded-[3px] ${option.dot}`} aria-hidden="true" />
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
 
           <select
@@ -228,28 +266,31 @@ export function AvailabilityGrid({
       ) : null}
 
       {/* ---------------- legend ---------------- */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] font-semibold text-muted">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11.5px] font-medium text-muted">
         <span className="flex items-center gap-1.5">
-          <i className="inline-block h-3 w-3 rounded-[4px] bg-ok" /> Free
+          <i className="inline-block h-2.5 w-2.5 rounded-[3px] bg-ok" aria-hidden="true" /> Free
         </span>
         <span className="flex items-center gap-1.5">
-          <i className="inline-block h-3 w-3 rounded-[4px] border border-[#e3e6f2] bg-[#eef1f8]" /> Busy
+          <i className="inline-block h-2.5 w-2.5 rounded-[3px] bg-bad/55" aria-hidden="true" /> Busy
         </span>
-        {editable ? <span className="text-faint">Drag across cells to paint. Start on green to erase.</span> : null}
+        <span className="flex items-center gap-1.5">
+          <i className="inline-block h-2.5 w-2.5 rounded-[3px] border border-line-2 bg-[#f4f5fa]" aria-hidden="true" /> Unassigned
+        </span>
+        {editable ? <span className="text-faint">Drag to paint.</span> : null}
         {editable && dirty ? (
-          <span className="ml-auto flex items-center gap-1.5 font-bold text-warn-dark">
-            <i className="inline-block h-2 w-2 rounded-full bg-warn" /> Unsaved
+          <span className="ml-auto flex items-center gap-1.5 font-semibold text-warn-dark">
+            <i className="inline-block h-1.5 w-1.5 rounded-full bg-warn" aria-hidden="true" /> Unsaved
           </span>
         ) : (
-          <span className="ml-auto text-ink-2">
-            <b>{weekTotal}h</b> free this week
+          <span className="ml-auto tabular-nums text-ink-2">
+            <b className="font-semibold">{weekTotal}h</b> free this week
           </span>
         )}
       </div>
 
       {isEmptyWeek && editable ? (
         <div className="mb-3 rounded-xl border border-brand-line bg-brand-soft px-3.5 py-2.5 text-[12.5px] leading-relaxed font-semibold text-brand-dark">
-          Nothing marked yet. Pick a quick fill above, or drag across the days you&apos;re free.
+          Pick <b>Free</b>, <b>Busy</b> or <b>Unassigned</b> above, then drag across the hours.
         </div>
       ) : null}
 
@@ -264,60 +305,64 @@ export function AvailabilityGrid({
             <div />
             {BLOCKS.map((block) => (
               <div key={block.label} className="text-center">
-                <div className="text-[11px] font-extrabold tracking-[.06em] text-ink-2 uppercase">{block.label}</div>
+                <div className="text-[10.5px] font-medium tracking-[.06em] text-faint uppercase">{block.label}</div>
                 <div className="text-[10px] font-semibold text-faint">{block.hint}</div>
               </div>
             ))}
           </div>
 
           {days.map((date, index) => {
-            const freeSet = new Set(map[date] ?? []);
+            const counts = countStates(map[date] ?? {});
             const isToday = date === today;
-            const count = freeSet.size;
+            const count = counts.free;
+            const busyCount = counts.busy;
             return (
               <div
                 key={date}
-                className="grid items-center gap-1 border-t border-[#f0f1f7] py-1.5 first:border-t-0"
+                className="grid items-center gap-1 border-t border-[#efece6] py-1.5 first:border-t-0"
                 style={{ gridTemplateColumns: `58px repeat(${BLOCKS.length}, minmax(0, 1fr))` }}
               >
                 <div className="pr-1">
-                  <div className={`text-[11px] font-extrabold tracking-wide uppercase ${isToday ? "text-brand" : "text-ink-2"}`}>
+                  <div className={`text-[10.5px] font-medium tracking-[.04em] uppercase ${isToday ? "text-brand" : "text-faint"}`}>
                     {weekdayOf(date)}
                   </div>
-                  <div className={`text-[15px] leading-tight font-extrabold ${isToday ? "text-brand" : "text-ink"}`}>
+                  <div className={`text-[14px] leading-tight font-semibold tabular-nums ${isToday ? "text-brand" : "text-ink"}`}>
                     {fromISODate(date).getDate()}
                   </div>
-                  <div className={`text-[10px] font-bold ${count ? "text-ok-dark" : "text-faint"}`}>
-                    {count ? `${count}h` : "—"}
+                  <div className="flex items-center gap-1 text-[10px] font-medium">
+                    {count ? <span className="tabular-nums text-[#047857]">{count}h</span> : null}
+                    {busyCount ? <span className="tabular-nums text-[#b91c1c]">{busyCount}h</span> : null}
+                    {!count && !busyCount ? <span className="text-faint">—</span> : null}
                   </div>
                 </div>
 
                 {BLOCKS.map((block) => (
                   <div key={block.label} className="flex gap-1">
                     {block.hours.map((hour) => {
-                      const free = freeSet.has(hour);
+                      const state = cellState(map[date], hour);
+                      const label = state === "unassigned" ? "not filled in" : state;
                       return (
                         <div
                           key={hour}
                           className="cell flex-1"
                           data-date={date}
                           data-hour={hour}
-                          data-free={free ? "true" : "false"}
+                          data-state={state}
                           data-readonly={editable ? "false" : "true"}
                           data-selected={isToday ? "true" : "false"}
                           onPointerDown={onCellPointerDown}
                           role={editable ? "button" : undefined}
-                          aria-label={`${weekdayOf(date)} ${shortDate(date)} ${hourLabel(hour)} ${free ? "free" : "busy"}`}
+                          aria-label={`${weekdayOf(date)} ${shortDate(date)} ${hourLabel(hour)} — ${label}`}
                           tabIndex={editable ? 0 : -1}
                           onKeyDown={(event) => {
                             if (!editable) return;
                             if (event.key === "Enter" || event.key === " ") {
                               event.preventDefault();
                               painted.current.clear();
-                              paintCell(event.currentTarget, !freeSet.has(hour));
+                              paintCell(event.currentTarget, brush);
                             }
                           }}
-                          title={`${hourLabel(hour)}–${hourLabel(hour + 1)}`}
+                          title={`${hourLabel(hour)}–${hourLabel(hour + 1)} · ${label}`}
                         >
                           <span className="sr-only">{hourLabel(hour)}</span>
                         </div>
@@ -334,28 +379,33 @@ export function AvailabilityGrid({
       {/* ---------------- per-day chips: the plain-English summary ---------------- */}
       <div className="mt-4 grid gap-1.5 sm:grid-cols-2">
         {days.map((date) => {
-          const hours = (map[date] ?? []).slice().sort((a, b) => a - b);
+          const day = map[date] ?? {};
+          const hours = hoursFromStates(day);
+          const counts = countStates(day);
           const isToday = date === today;
+          const touched = counts.free + counts.busy > 0;
           return (
             <div
               key={date}
-              className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-[12.5px] ${
-                hours.length ? "border-[#d9f2e6] bg-ok-soft/60" : "border-line bg-[#fafaff]"
+              className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-[12.5px] ${
+                touched ? "border-line bg-white" : "border-dashed border-line-2 bg-[#fbfaf8]"
               }`}
             >
-              <span className="font-bold text-ink-2">
+              <span className="font-medium text-ink-2">
                 {weekdayOf(date)} {fromISODate(date).getDate()}
-                {isToday ? <span className="ml-1.5 text-[10.5px] font-extrabold text-brand uppercase">today</span> : null}
+                {isToday ? <span className="ml-1.5 text-[10.5px] font-semibold text-brand uppercase">today</span> : null}
               </span>
-              <span className={`text-right font-semibold ${hours.length ? "text-[#065f46]" : "text-faint"}`}>
-                {hours.length ? rangesText(hours) : "busy"}
+              <span className="flex items-center gap-2 text-right">
+                {counts.free ? <span className="tabular-nums text-[#047857]">{counts.free}h free</span> : null}
+                {counts.busy ? <span className="tabular-nums text-[#b91c1c]">{counts.busy}h busy</span> : null}
+                {!touched ? <span className="text-faint">not filled in</span> : null}
               </span>
               {editable ? (
                 <button
                   type="button"
-                  onClick={() => setDay(date, [])}
-                  disabled={!hours.length}
-                  className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-faint transition hover:bg-white hover:text-ink disabled:opacity-0"
+                  onClick={() => setDay(date, "unassigned")}
+                  disabled={!touched}
+                  className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium text-faint transition-colors hover:bg-[#f4f5fa] hover:text-ink-2 disabled:opacity-0"
                   aria-label={`Clear ${weekdayOf(date)}`}
                 >
                   clear
@@ -369,12 +419,16 @@ export function AvailabilityGrid({
       {!editable && emptyHint ? <p className="mt-3 text-[12px] text-faint">{emptyHint}</p> : null}
 
       {/* footer totals */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-muted">
-        <span>
-          This week: <b className="text-ink-2">{weekTotal}h free</b>
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted">
+        <span className="tabular-nums">
+          <b className="font-semibold text-[#047857]">{weekTotal}h</b> free
         </span>
-        <span className="text-faint">·</span>
-        <span>{days.filter((d) => (map[d] ?? []).length).length} of 7 days with hours</span>
+        {weekBusy ? (
+          <span className="tabular-nums">
+            <b className="font-semibold text-[#b91c1c]">{weekBusy}h</b> busy
+          </span>
+        ) : null}
+        <span className="tabular-nums text-faint">{weekUnassigned}h unassigned</span>
       </div>
 
       {message ? (

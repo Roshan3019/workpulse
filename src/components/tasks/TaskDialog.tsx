@@ -4,20 +4,28 @@ import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Alert } from "@/components/ui/Modal";
 import { saveTaskAction, type ActionResult } from "@/lib/actions/tasks";
-import type { Member, Task } from "@/lib/types";
+import type { Member, Task, Team } from "@/lib/types";
 import { addDays, countdownLabel, todayISO, TIME_PRESETS } from "@/lib/dates";
 
 const initial: ActionResult = {};
 
 type Props = {
   members: Member[];
+  teams?: Team[];
   task?: Task;
   triggerClassName?: string;
   triggerLabel?: string;
   variant?: "primary" | "icon";
 };
 
-export function TaskDialog({ members, task, triggerClassName, triggerLabel, variant = "primary" }: Props) {
+export function TaskDialog({
+  members,
+  teams = [],
+  task,
+  triggerClassName,
+  triggerLabel,
+  variant = "primary",
+}: Props) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const editing = Boolean(task);
@@ -59,7 +67,7 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Edit task"
-          className={triggerClassName ?? "grid h-9 w-9 place-items-center rounded-lg text-muted transition hover:bg-[#f1f3fa] hover:text-ink"}
+          className={triggerClassName ?? "grid h-9 w-9 place-items-center rounded-lg text-muted transition hover:bg-[#f2efea] hover:text-ink"}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 20h9" />
@@ -105,12 +113,26 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
                   .filter((m) => m.role === "member" || m.userId === task?.assigneeId)
                   .map((m) => (
                     <option key={m.userId} value={m.userId}>
-                      {m.profile.fullName ?? m.profile.email} — {m.profile.email}
+                      {m.profile.fullName ?? m.profile.email} ({m.profile.email})
                     </option>
                   ))}
               </select>
             </div>
           </div>
+
+          {teams.length ? (
+            <div className="field">
+              <label htmlFor="teamId">Team</label>
+              <select id="teamId" name="teamId" defaultValue={task?.teamId ?? ""}>
+                <option value="">No team (studio-wide)</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           <div className="field">
             <label htmlFor="description">Description / reference link</label>
@@ -132,7 +154,7 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
           </div>
 
           {/* ---- timing: start → due, with a live countdown ---- */}
-          <div className="rounded-xl border border-line bg-[#fafaff] p-3.5">
+          <div className="rounded-xl border border-line bg-[#fbfaf8] p-3.5">
             <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
               <span className="label !mb-0">Timing</span>
               {timingSummary ? (
@@ -192,7 +214,7 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
                   className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition ${
                     dueDate === addDays(todayISO(), option.days)
                       ? "border-brand bg-brand-soft text-brand-dark"
-                      : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
+                      : "border-line-2 bg-white text-muted hover:border-[#c9c2b6] hover:text-ink"
                   }`}
                 >
                   {option.label}
@@ -207,7 +229,7 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
                   className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition ${
                     dueTime === preset.value
                       ? "border-brand bg-brand-soft text-brand-dark"
-                      : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
+                      : "border-line-2 bg-white text-muted hover:border-[#c9c2b6] hover:text-ink"
                   }`}
                 >
                   {preset.label.split(" · ")[1]}
@@ -237,7 +259,7 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
 
           <div className="field">
             <label htmlFor="progress">
-              Progress — <span className="text-ink">{progress}%</span>
+              Progress <span className="text-ink">{progress}%</span>
             </label>
             <input
               id="progress"

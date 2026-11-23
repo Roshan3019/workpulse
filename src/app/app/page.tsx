@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { OverallSlots } from "@/components/dashboard/OverallSlots";
+import { TeamSwitcher } from "@/components/dashboard/TeamSwitcher";
+import { JoinRequestInbox } from "@/components/team/JoinRequestInbox";
 import { WorkloadList } from "@/components/dashboard/WorkloadList";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { EmptyState, Section } from "@/components/ui";
@@ -9,6 +11,7 @@ import { orgMembers } from "@/lib/data/request-cache";
 import { countdownLabel, dueDateOf, dueLabel, nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
+import { hoursFromStates } from "@/lib/availability";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -19,28 +22,53 @@ const STATUS_TONE = {
   done: "pill-green",
 } as const;
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ team?: string }>;
+}) {
   const session = await requireSession();
   if (!isAdminRole(session.membership.role)) redirect("/app/my-tasks");
 
   const store = getStore();
   const orgId = session.organization.id;
-  const [members, tasks, tz] = await Promise.all([
+  const [members, allTasks, tz, teams, joinRequests, params] = await Promise.all([
     orgMembers(orgId),
     store.listTasks(orgId),
     getUserTimeZone(),
+    store.listTeams(orgId),
+    store.listJoinRequests(orgId),
+    searchParams,
   ]);
 
-  const freelancers = members.filter((m) => m.role === "member");
+  /*
+   * The switcher is a query param, so "Overall" and each team are separate,
+   * linkable views. An unknown slug falls back to Overall rather than 404ing.
+   */
+  const selectedTeam = teams.find((t) => t.slug === params.team) ?? null;
+  const tasks = selectedTeam ? allTasks.filter((t) => t.teamId === selectedTeam.id) : allTasks;
+
+  const teamMembership = new Set(selectedTeam?.memberIds ?? []);
+  const freelancers = members.filter(
+    (m) => m.role === "member" && (!selectedTeam || teamMembership.has(m.userId)),
+  );
   const openTasks = tasks.filter((t) => t.status !== "done");
   const totalHours = openTasks.reduce((sum, t) => sum + Number(t.estHours), 0);
   const doneCount = tasks.filter((t) => t.status === "done").length;
 
   const dates = nextDatesIn(7, tz);
-  const availability = await store.getAvailability(
+  const availability = await store.getAvailabilityStates(
     orgId,
     freelancers.map((m) => m.userId),
     dates,
+  );
+
+  // Legacy hour map for the widgets that still think in "free hours".
+  const freeHours: Record<string, Record<string, number[]>> = Object.fromEntries(
+    Object.entries(availability).map(([userId, days]) => [
+      userId,
+      Object.fromEntries(Object.entries(days).map(([date, states]) => [date, hoursFromStates(states)])),
+    ]),
   );
 
   // Sorted by the real due moment (date + time), not just the date string.
@@ -52,89 +80,52 @@ export default async function DashboardPage() {
     )
     .slice(0, 5);
 
-  const icon = (paths: React.ReactNode) => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {paths}
-    </svg>
-  );
-
   const stats = [
-    {
-      label: "Freelancers",
-      value: freelancers.length,
-      note: "Members on the team",
-      tint: "bg-brand-soft text-brand",
-      icon: icon(
-        <>
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        </>,
-      ),
-    },
-    {
-      label: "Active tasks",
-      value: openTasks.length,
-      note: "Pending + in progress",
-      tint: "bg-ok-soft text-ok-dark",
-      icon: icon(
-        <>
-          <path d="M8 6h13M8 12h13M8 18h13" />
-          <path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
-        </>,
-      ),
-    },
-    {
-      label: "Est. hours",
-      value: Math.round(totalHours),
-      note: "Across active tasks",
-      tint: "bg-warn-soft text-warn-dark",
-      icon: icon(
-        <>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3.5 2" />
-        </>,
-      ),
-    },
-    {
-      label: "Completed",
-      value: doneCount,
-      note: "All time",
-      tint: "bg-[#f1f3f9] text-ink-2",
-      icon: icon(
-        <>
-          <path d="M20 6 9 17l-5-5" />
-        </>,
-      ),
-    },
+    { label: "Freelancers", value: freelancers.length, note: selectedTeam ? `In ${selectedTeam.name}` : "On the team" },
+    { label: "Active tasks", value: openTasks.length, note: "Pending + in progress" },
+    { label: "Estimated hours", value: Math.round(totalHours), note: "Across active tasks" },
+    { label: "Completed", value: doneCount, note: "All time" },
   ];
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="h1">Team pulse, right now</h1>
-          <p className="lede">Who&apos;s free, who&apos;s slammed, and what&apos;s due next — at a glance.</p>
+          <h1 className="h1">{selectedTeam ? selectedTeam.name : "Team pulse, right now"}</h1>
+          <p className="lede">
+            {selectedTeam
+              ? `People, hours and deadlines in ${selectedTeam.name}.`
+              : "Who's free, who's slammed, and what's due next."}
+          </p>
         </div>
-        <TaskDialog members={members} />
+        <TaskDialog members={members} teams={teams} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {teams.length ? (
+        <TeamSwitcher teams={teams} active={selectedTeam?.slug ?? null} />
+      ) : null}
+
+      {/* Only admins land on this page, so anyone waiting is theirs to approve. */}
+      <JoinRequestInbox requests={joinRequests} />
+
+      {/* Figures, not four competing tiles. A single ruled row reads at a glance. */}
+      <div className="grid grid-cols-2 divide-line rounded-[12px] border border-line bg-white sm:grid-cols-4 sm:divide-x">
         {stats.map((stat) => (
-          <div key={stat.label} className="card p-4 sm:p-5">
-            <div className="flex items-center gap-2.5">
-              <span className={`grid h-9 w-9 place-items-center rounded-xl ${stat.tint}`}>{stat.icon}</span>
-              <span className="label">{stat.label}</span>
+          <div key={stat.label} className="px-4 py-3.5">
+            <div className="text-[11.5px] font-medium text-muted">{stat.label}</div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-[22px] leading-none font-semibold tabular-nums tracking-[-0.02em]">
+                {stat.value}
+              </span>
+              <span className="truncate text-[11px] text-faint">{stat.note}</span>
             </div>
-            <div className="mt-3 text-[28px] leading-none font-extrabold tracking-[-0.02em]">{stat.value}</div>
-            <div className="mt-1.5 text-[12px] text-faint">{stat.note}</div>
           </div>
         ))}
       </div>
 
       <WorkloadList members={freelancers} tasks={tasks} />
 
-      <OverallSlots members={freelancers} availability={availability} dates={dates} />
+      <OverallSlots members={freelancers} availability={freeHours} dates={dates} />
 
       <Section
         title="Next deadlines"
@@ -146,9 +137,9 @@ export default async function DashboardPage() {
         }
       >
         {upcoming.length === 0 ? (
-          <EmptyState title="Nothing due" hint="Assign a task and it will show up here." icon="🎉" />
+          <EmptyState title="Nothing due" hint="Assign a task and it will show up here." />
         ) : (
-          <ul className="divide-y divide-[#f0f1f7]">
+          <ul className="divide-y divide-[#efece6]">
             {upcoming.map((task) => {
               const assignee = members.find((m) => m.userId === task.assigneeId);
               const overdue = dueDateOf(task.deadline!, task.dueTime).getTime() < Date.now();

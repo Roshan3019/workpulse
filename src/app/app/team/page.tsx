@@ -7,6 +7,7 @@ import { orgMembers } from "@/lib/data/request-cache";
 import { nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
+import { countStates } from "@/lib/availability";
 
 export const metadata = { title: "Team" };
 export const dynamic = "force-dynamic";
@@ -20,12 +21,12 @@ export default async function TeamPage() {
   const [members, tz] = await Promise.all([orgMembers(orgId), getUserTimeZone()]);
   const dates = nextDatesIn(7, tz);
   const memberIds = members.filter((m) => m.role === "member").map((m) => m.userId);
-  const availability = await store.getAvailability(orgId, memberIds, dates);
+  const availability = await store.getAvailabilityStates(orgId, memberIds, dates);
 
   const freeHours = Object.fromEntries(
     Object.entries(availability).map(([userId, map]) => [
       userId,
-      dates.reduce((sum, d) => sum + (map[d]?.length ?? 0), 0),
+      dates.reduce((sum, d) => sum + countStates(map[d] ?? {}).free, 0),
     ]),
   );
 
@@ -35,15 +36,20 @@ export default async function TeamPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="h1">Your team</h1>
+          <h1 className="h1">People</h1>
           <p className="lede">
-            {members.length} {members.length === 1 ? "person" : "people"} · {adminCount} admin
-            {adminCount === 1 ? "" : "s"} · {session.organization.seatLimit} seat plan
+            {members.length} {members.length === 1 ? "person" : "people"}, {adminCount} admin
+            {adminCount === 1 ? "" : "s"}. Plan covers {session.organization.seatLimit} seats.
           </p>
         </div>
-        <Link href="/app/settings" className="btn-outline">
-          Invite teammates
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/app/teams" className="btn-outline">
+            Teams
+          </Link>
+          <Link href="/app/settings" className="btn-primary">
+            Invite people
+          </Link>
+        </div>
       </div>
 
       <Section
@@ -52,7 +58,7 @@ export default async function TeamPage() {
         action={<Badge tone="grey">{members.filter((m) => m.role === "member").length} freelancers</Badge>}
       >
         {members.length === 0 ? (
-          <EmptyState title="Nobody here yet" hint="Invite your first freelancer from Settings." icon="👥" />
+          <EmptyState title="Nobody here yet" hint="Invite your first freelancer from Settings." />
         ) : (
           <TeamGrid
             members={members}
@@ -63,10 +69,12 @@ export default async function TeamPage() {
         )}
       </Section>
 
-      <div className="card border-brand-line bg-brand-soft p-4 text-[13px] leading-relaxed text-brand-dark">
-        <b>How roles behave:</b> nobody can change their own role — including the owner. An admin can promote a member
-        to admin or demote another admin, but only the owner can hand over ownership (Settings → Transfer ownership).
-        Every rule is enforced in the database, not just the UI.
+      {/* A quiet note, not a highlighted banner: it's reference material. */}
+      <div className="rounded-[12px] border border-line bg-white px-4 py-3.5 text-[12.5px] leading-relaxed text-muted">
+        <span className="font-medium text-ink-2">How roles work.</span> Nobody can change their own
+        role, including the owner. An admin can promote a member or demote another admin; only the
+        owner can hand over ownership (Settings, then Transfer ownership). Every rule is enforced in
+        the database, not just the interface.
       </div>
     </div>
   );

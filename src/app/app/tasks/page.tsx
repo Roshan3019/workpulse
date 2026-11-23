@@ -26,7 +26,7 @@ const STATUS_TONE = {
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; assignee?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; assignee?: string; team?: string }>;
 }) {
   const session = await requireSession();
   if (!isAdminRole(session.membership.role)) redirect("/app/my-tasks");
@@ -43,12 +43,18 @@ export default async function TasksPage({
    * (hundreds), so a single query plus a pure filter is dramatically cheaper
    * than two more round trips across the network.
    */
-  const [members, allTasks] = await Promise.all([orgMembers(orgId), store.listTasks(orgId)]);
+  const [members, allTasks, teams] = await Promise.all([
+    orgMembers(orgId),
+    store.listTasks(orgId),
+    store.listTeams(orgId),
+  ]);
+  const team = params.team && params.team !== "all" ? teams.find((t) => t.slug === params.team) ?? null : null;
   const search = params.q?.trim().toLowerCase();
   const status = params.status && params.status !== "all" ? params.status : undefined;
   const assigneeId = params.assignee && params.assignee !== "all" ? params.assignee : undefined;
   const filtered = allTasks.filter(
     (t) =>
+      (!team || t.teamId === team.id) &&
       (!assigneeId || t.assigneeId === assigneeId) &&
       (!status || t.status === status) &&
       (!search ||
@@ -65,7 +71,7 @@ export default async function TasksPage({
             {filtered.length} of {allTasks.length} shown
           </p>
         </div>
-        <TaskDialog members={members} />
+        <TaskDialog members={members} teams={teams} />
       </div>
 
       <form method="get" className="card flex flex-wrap gap-2.5 p-3.5">
@@ -98,6 +104,16 @@ export default async function TasksPage({
               </option>
             ))}
         </select>
+        {teams.length ? (
+          <select name="team" defaultValue={params.team ?? "all"} className="rounded-full border border-line-2 bg-white px-4 py-2.5 text-sm font-semibold text-ink-2 outline-none">
+            <option value="all">All teams</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.slug}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <button type="submit" className="btn-primary btn-sm px-5">
           Filter
         </button>
@@ -105,7 +121,7 @@ export default async function TasksPage({
 
       {filtered.length === 0 ? (
         <div className="card">
-          <EmptyState title="No tasks match" hint="Try a different search, status or assignee." icon="🔍" />
+          <EmptyState title="No tasks match" hint="Try a different search, status or assignee." />
         </div>
       ) : (
         <div className="space-y-3">
@@ -121,8 +137,16 @@ export default async function TasksPage({
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={PRIORITY_TONE[task.priority]}>{task.priority}</Badge>
                     <span className="text-[12.5px] font-semibold text-muted">{task.client || "No client"}</span>
+                    {(() => {
+                      const owner = teams.find((t) => t.id === task.teamId);
+                      return owner ? (
+                        <span className="rounded-md bg-[#f4f5fa] px-1.5 py-0.5 text-[11px] font-medium text-muted">
+                          {owner.name}
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
-                  <h2 className="mt-1.5 text-[16.5px] font-extrabold">{task.title}</h2>
+                  <h2 className="mt-1.5 text-[16.5px] font-semibold">{task.title}</h2>
                   {task.description ? (
                     <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed break-words text-muted">
                       {task.description}
@@ -160,7 +184,7 @@ export default async function TasksPage({
                       {task.status !== "done" ? ` · ${countdownLabel(task.deadline, task.dueTime)}` : ""}
                     </Badge>
                   ) : null}
-                  <TaskDialog members={members} task={task} variant="icon" />
+                  <TaskDialog members={members} teams={teams} task={task} variant="icon" />
                   <DeleteTaskButton taskId={task.id} title={task.title} />
                 </div>
               </article>

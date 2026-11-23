@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui";
 import { Alert } from "@/components/ui/Modal";
@@ -12,7 +12,18 @@ import {
   transferOwnershipAction,
   type ActionResult,
 } from "@/lib/actions/org";
-import { PLANS, type Invite, type Member, type OrgRole, type Organization } from "@/lib/types";
+import {
+  setJoinLinkEnabledAction,
+  rotateJoinLinkAction,
+} from "@/lib/actions/joining";
+import {
+  PLANS,
+  type Invite,
+  type JoinLink,
+  type Member,
+  type OrgRole,
+  type Organization,
+} from "@/lib/types";
 
 const initial: ActionResult = {};
 
@@ -93,7 +104,7 @@ export function InvitePanel({
         <Badge tone={full ? "red" : "green"}>
           {seatsUsed}/{seatLimit} seats used
         </Badge>
-        {full ? <span>Seat limit reached — upgrade the plan to invite more people.</span> : null}
+        {full ? <span>Seat limit reached. Upgrade the plan to invite more people.</span> : null}
       </div>
 
       {canInvite ? (
@@ -102,7 +113,7 @@ export function InvitePanel({
             name="email"
             type="email"
             placeholder="teammate@studio.com  ·  leave blank for a shareable link"
-            className="rounded-xl border border-line-2 border-[#dde1ee] px-3.5 py-3 text-sm outline-none focus:border-brand"
+            className="rounded-xl border border-line-2 border-[#dcd6cc] px-3.5 py-3 text-sm outline-none focus:border-brand"
           />
           <select name="role" defaultValue="member" className="rounded-xl border border-line-2 px-3.5 py-3 text-sm font-semibold outline-none focus:border-brand">
             <option value="member">Member</option>
@@ -130,7 +141,7 @@ export function InvitePanel({
       ) : null}
 
       {invites.length ? (
-        <div className="divide-y divide-[#f0f1f7] rounded-xl border border-line">
+        <div className="divide-y divide-[#efece6] rounded-xl border border-line">
           {invites.map((invite) => (
             <div key={invite.id} className="flex flex-wrap items-center gap-2 px-3.5 py-2.5 text-[13px]">
               <span className="font-semibold">{invite.email ?? "Shareable link"}</span>
@@ -212,7 +223,7 @@ export function PlanPanel({
                 <b className="text-[15px]">{plan.label}</b>
                 {current ? <Badge tone="indigo">Current</Badge> : null}
               </div>
-              <div className="mt-1.5 text-[24px] font-extrabold tracking-[-0.02em]">
+              <div className="mt-1.5 text-[22px] font-semibold tracking-[-0.025em] tabular-nums">
                 {plan.priceMonthly === 0 ? "Free" : `$${plan.priceMonthly}`}
                 {plan.priceMonthly ? <span className="text-[13px] font-semibold text-muted">/mo</span> : null}
               </div>
@@ -240,7 +251,7 @@ export function PlanPanel({
 
       {message ? <Alert tone={message.tone}>{message.text}</Alert> : null}
       <p className="text-[12px] leading-relaxed text-faint">
-        Plans and seat limits are enforced server-side. Payments aren&apos;t wired yet — connect Stripe to make upgrades
+        Plans and seat limits are enforced server-side. Payments aren&apos;t wired yet; connect Stripe to make upgrades
         self-serve (see docs/DEPLOYMENT.md).
       </p>
     </div>
@@ -291,6 +302,123 @@ export function TransferOwnershipPanel({ members, isOwner }: { members: Member[]
         You&apos;ll become an admin and lose owner-only powers. This can&apos;t be undone without the new owner&apos;s
         help.
       </p>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Join link (the common, approval-gated way in)                              */
+/* -------------------------------------------------------------------------- */
+export function JoinLinkPanel({
+  link,
+  pendingCount,
+  baseUrl,
+}: {
+  link: JoinLink;
+  pendingCount: number;
+  /** Server-side origin, so the copy button works before hydration too. */
+  baseUrl?: string;
+}) {
+  const router = useRouter();
+  const [enabled, setEnabled] = useState(link.enabled);
+  const [origin, setOrigin] = useState(baseUrl ?? "");
+  const [copied, setCopied] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, startTransition] = useTransition();
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const url = `${origin}/join/${link.token}`;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setError("Couldn't copy. Select the link and copy it manually.");
+    }
+  }
+
+  function toggle(next: boolean) {
+    setEnabled(next);
+    setError(null);
+    startTransition(async () => {
+      const result = await setJoinLinkEnabledAction(next);
+      if (result.error) {
+        setEnabled(!next);
+        setError(result.error);
+        return;
+      }
+      setMessage(result.message ?? null);
+      router.refresh();
+    });
+  }
+
+  function rotate() {
+    if (!window.confirm("Create a new link? Anyone still holding the old one will lose access.")) return;
+    startTransition(async () => {
+      const result = await rotateJoinLinkAction();
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setMessage(result.message ?? null);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[12.5px] leading-relaxed text-muted">
+        One link for everyone. Anyone with it can ask to join, and you approve them from the
+        dashboard. Nobody gets in on their own.
+      </p>
+
+      <div className="flex items-center gap-2 rounded-lg border border-line bg-[#fbfaf8] px-2.5 py-2">
+        <input
+          readOnly
+          value={url}
+          onFocus={(event) => event.currentTarget.select()}
+          className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink-2 outline-none"
+          aria-label="Join link"
+        />
+        <button type="button" onClick={copy} className="btn-outline btn-sm shrink-0">
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <label className="flex items-center gap-2 text-[12.5px] font-medium text-ink-2">
+          <input
+            type="checkbox"
+            checked={enabled}
+            disabled={busy}
+            onChange={(event) => toggle(event.target.checked)}
+            className="h-3.5 w-3.5 accent-[var(--color-brand)]"
+          />
+          Accepting requests
+        </label>
+        <button
+          type="button"
+          onClick={rotate}
+          disabled={busy}
+          className="text-[12.5px] font-medium text-muted underline underline-offset-2 transition-colors hover:text-ink disabled:opacity-50"
+        >
+          New link
+        </button>
+        <span className="ml-auto text-[12px] text-muted">
+          {pendingCount
+            ? `${pendingCount} waiting for approval`
+            : "No requests waiting"}
+        </span>
+      </div>
+
+      {message ? <Alert tone="success">{message}</Alert> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
     </div>
   );
 }

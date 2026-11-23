@@ -61,6 +61,8 @@ export interface Task {
   startDate: string | null;
   /** Optional exact due time, HH:MM (24h). Together with `deadline` this is the due minute. */
   dueTime: string | null;
+  /** The team this work belongs to. Null = studio-wide (created before teams). */
+  teamId: string | null;
   createdAt: string;
 }
 
@@ -74,8 +76,80 @@ export interface Invite {
   createdAt: string;
 }
 
-/** date (YYYY-MM-DD) -> array of free hours (0-23) */
+/* --------------------------------------------------------------------------
+   Join requests
+
+   Two ways into a studio, chosen by the admin:
+     • a targeted email invite — joins immediately when they accept;
+     • a common join link — anyone with it can *ask* to join, and an admin
+       approves or declines from an inbox in the dashboard.
+   Nothing is inserted into `memberships` until approval.
+   -------------------------------------------------------------------------- */
+export type JoinRequestStatus = "pending" | "approved" | "declined";
+
+/**
+ * A reusable week: weekday (0=Sun … 6=Sat) -> hour -> state. Applied at read
+ * time to any day that has no row of its own, so future weeks fill themselves
+ * in; an explicit day always wins.
+ */
+export type WeeklyDefault = Record<number, Record<number, SlotState>>;
+
+export interface JoinLink {
+  orgId: string;
+  token: string;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface JoinRequest {
+  id: string;
+  orgId: string;
+  userId: string;
+  /** Who asked — resolved for the inbox, so the admin knows who they're letting in. */
+  profile: Profile;
+  note: string | null;
+  status: JoinRequestStatus;
+  createdAt: string;
+  decidedAt: string | null;
+}
+
+/* --------------------------------------------------------------------------
+   Availability
+   --------------------------------------------------------------------------
+   Three states, as agreed with the client:
+
+     free        the person said they're available
+     busy        the person explicitly said they're not
+     unassigned  nothing has been said about this hour (grey, "not filled in")
+
+   An hour missing from the map *is* `unassigned`, so "not filled in" is the
+   default rather than a third stored value. `states` stores only free/busy.
+
+   The legacy shape (date -> array of free hours) is still what the grid was
+   built on, and `hours` is still mirrored in the database. See
+   lib/availability.ts for the conversion, which is the only place that should
+   know about both shapes.
+   -------------------------------------------------------------------------- */
+export type SlotState = "free" | "busy";
+
+/** date (YYYY-MM-DD) -> { hour: 'free' | 'busy' }. Missing hour = unassigned. */
+export type AvailabilityStates = Record<string, Record<number, SlotState>>;
+
+/** @deprecated legacy shape — date -> array of free hours. Use AvailabilityStates. */
 export type AvailabilityMap = Record<string, number[]>;
+
+/* --------------------------------------------------------------------------
+   Teams
+   -------------------------------------------------------------------------- */
+export interface Team {
+  id: string;
+  orgId: string;
+  name: string;
+  slug: string;
+  /** Everyone on the roster (user ids), so the dashboard can filter in memory. */
+  memberIds: string[];
+  createdAt: string;
+}
 
 export interface Session {
   user: Profile;

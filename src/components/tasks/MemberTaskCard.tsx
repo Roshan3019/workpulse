@@ -42,22 +42,22 @@ export function MemberTaskCard({ task }: { task: Task }) {
   return (
     <article className="card p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[12.5px] font-extrabold tracking-[.06em] text-brand-dark uppercase">
+        <span className="text-[12px] font-medium text-brand-dark">
           {task.client || "No client"}
         </span>
         {task.deadline ? (
           <Badge tone={done ? "green" : overdue ? "red" : "grey"}>
-            📅 {dueLabel(task.deadline, task.dueTime)}
+            {dueLabel(task.deadline, task.dueTime)}
             {!done ? ` · ${countdownLabel(task.deadline, task.dueTime)}` : ""}
           </Badge>
         ) : null}
         <span className="ml-auto flex items-center gap-2">
-          <span className="text-[13px] text-muted">🕐 {task.estHours}h</span>
+          <span className="text-[12.5px] tabular-nums text-muted">{task.estHours}h</span>
           <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
         </span>
       </div>
 
-      <h3 className="mt-2.5 text-[19px] font-extrabold">{task.title}</h3>
+      <h3 className="mt-2.5 text-[19px] font-semibold">{task.title}</h3>
       {task.description ? (
         <p className="mt-1 text-[13.5px] leading-relaxed break-words text-muted">{task.description}</p>
       ) : null}

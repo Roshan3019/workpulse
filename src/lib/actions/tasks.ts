@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getStore } from "../data";
 import { requireAdmin, requireSession } from "../session";
-import { memberProgressSchema, taskSchema } from "../validation";
+import { memberProgressSchema, taskSchema, teamSchema } from "../validation";
 import { isAdminRole, type Task } from "../types";
 
 export type ActionResult = { error?: string; ok?: boolean };
@@ -60,6 +60,7 @@ export async function saveTaskAction(formData: FormData): Promise<ActionResult> 
         deadline: parsed.data.deadline ?? null,
         startDate: parsed.data.startDate ?? null,
         dueTime: parsed.data.dueTime ?? null,
+        teamId: parsed.data.teamId && parsed.data.teamId !== "none" ? parsed.data.teamId : null,
       });
     } else {
       await store.createTask(
@@ -76,6 +77,7 @@ export async function saveTaskAction(formData: FormData): Promise<ActionResult> 
           deadline: parsed.data.deadline ?? null,
           startDate: parsed.data.startDate ?? null,
           dueTime: parsed.data.dueTime ?? null,
+          teamId: parsed.data.teamId && parsed.data.teamId !== "none" ? parsed.data.teamId : null,
         },
         session.user.id,
       );
@@ -140,6 +142,53 @@ export async function adminSetStatusAction(taskId: string, status: Task["status"
   } catch (error) {
     return { error: (error as Error).message };
   }
+  refresh();
+  return { ok: true };
+}
+
+/* --------------------------------- teams --------------------------------- */
+
+export async function saveTeamAction(formData: FormData): Promise<ActionResult> {
+  const session = await requireAdmin();
+  const store = getStore();
+
+  const parsed = teamSchema.safeParse({
+    name: formData.get("name"),
+    memberIds: formData.getAll("memberIds").map(String).filter(Boolean),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the team details" };
+
+  const orgId = session.organization.id;
+  const members = await store.listMembers(orgId);
+  // Only people from this studio, and only freelancers can sit in a team.
+  const allowed = new Set(members.filter((m) => m.role === "member").map((m) => m.userId));
+  const memberIds = parsed.data.memberIds.filter((id) => allowed.has(id));
+
+  const id = String(formData.get("id") ?? "");
+  try {
+    if (id) {
+      await store.updateTeam(orgId, id, { name: parsed.data.name });
+      await store.setTeamMembers(orgId, id, memberIds);
+    } else {
+      await store.createTeam(orgId, parsed.data.name, memberIds);
+    }
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+
+  revalidatePath("/app/teams");
+  refresh();
+  return { ok: true };
+}
+
+export async function deleteTeamAction(teamId: string): Promise<ActionResult> {
+  const session = await requireAdmin();
+  try {
+    await getStore().deleteTeam(session.organization.id, teamId);
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+  revalidatePath("/app/teams");
   refresh();
   return { ok: true };
 }
