@@ -6,6 +6,7 @@ import { getStore } from "@/lib/data";
 import { nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
+import { countStates } from "@/lib/availability";
 
 export const metadata = { title: "My tasks" };
 export const dynamic = "force-dynamic";
@@ -27,8 +28,11 @@ export default async function MyTasksPage() {
   const done = tasks.filter((t) => t.status === "done");
 
   const dates = nextDatesIn(7, tz);
-  const availability = await store.getAvailability(orgId, [session.membership.userId], dates);
-  const freeNext7 = dates.reduce((sum, d) => sum + (availability[session.membership.userId]?.[d]?.length ?? 0), 0);
+  const availability = await store.getAvailabilityStates(orgId, [session.membership.userId], dates);
+  const freeNext7 = dates.reduce(
+    (sum, d) => sum + countStates(availability[session.membership.userId]?.[d] ?? {}).free,
+    0,
+  );
   const assignedHours = active.reduce((sum, t) => sum + Number(t.estHours), 0);
   const utilisation = session.membership.capacity
     ? Math.round((assignedHours / session.membership.capacity) * 100)

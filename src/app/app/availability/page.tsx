@@ -1,11 +1,11 @@
 import { AvailabilityGrid } from "@/components/availability/AvailabilityGrid";
-import { MemberPicker } from "@/components/availability/MemberPicker";
 import { Avatar, Badge, EmptyState, Section } from "@/components/ui";
 import { getStore } from "@/lib/data";
 import { orgMembers } from "@/lib/data/request-cache";
-import { nextDatesIn, shortDate } from "@/lib/dates";
+import { nextDatesIn, shortDate, weekdayOf } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
+import { countStates } from "@/lib/availability";
 
 export const metadata = { title: "Availability" };
 export const dynamic = "force-dynamic";
@@ -25,78 +25,161 @@ export default async function AvailabilityPage({
   const today = dates[0];
   const admin = isAdminRole(session.membership.role);
 
-  /* ---------------------------- ADMIN: view only ---------------------------- */
+  /* ------------------------------ ADMIN VIEW ------------------------------- */
+  /*
+   * The client asked for one screen where an admin can read every member's
+   * free/busy at a glance. So this is a roster, not a picker: each person is a
+   * row with 7 day-cells, colour-coded, and clicking a name opens their full
+   * week below.
+   */
   if (admin) {
     const [members, params] = await Promise.all([orgMembers(orgId), searchParams]);
     const freelancers = members.filter((m) => m.role === "member");
-    const selectedId =
-      params.member && freelancers.some((m) => m.userId === params.member)
-        ? params.member
-        : freelancers[0]?.userId ?? "";
+    const userIds = freelancers.map((m) => m.userId);
+    const availability = userIds.length ? await store.getAvailabilityStates(orgId, userIds, dates) : {};
 
+    const selectedId =
+      params.member && freelancers.some((m) => m.userId === params.member) ? params.member : "";
     const selected = freelancers.find((m) => m.userId === selectedId);
-    const availability = selectedId ? await store.getAvailability(orgId, [selectedId], dates) : {};
+    const week = dates.slice(0, 7);
+    const weekLabel = `${shortDate(week[0])} – ${shortDate(week[week.length - 1])}`;
 
     return (
-      <div className="space-y-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="h1">Who&apos;s free when</h1>
-            <p className="lede">Green means free. Pick a person to see their week at a glance.</p>
+            <h1 className="h1">Availability</h1>
+            <p className="lede">Who has room this week, and who is booked out.</p>
           </div>
-          {freelancers.length > 1 ? <MemberPicker members={freelancers} selected={selectedId} /> : null}
+          <span className="text-[12px] font-medium text-faint tabular-nums">{weekLabel}</span>
         </div>
 
-        <div className="flex items-start gap-2 rounded-xl border border-line bg-white px-3.5 py-2.5 text-[12.5px] leading-relaxed text-muted">
-          <span>👁</span>
-          <span>
-            <b className="text-ink-2">View only.</b> Teammates keep their own calendar up to date; admins read it here.
-          </span>
-        </div>
-
-        {!selected ? (
+        {!freelancers.length ? (
           <div className="card">
             <EmptyState
               title="No freelancers yet"
-              hint="Availability appears here once you invite members to your team."
+              hint="Availability appears once people join your studio."
               icon="📅"
             />
           </div>
         ) : (
-          <Section
-            title={selected.profile.fullName ?? selected.profile.email}
-            subtitle={selected.profile.email}
-            action={
-              <div className="flex items-center gap-2">
-                <Badge tone="indigo">{shortDate(dates[0])} – {shortDate(dates[dates.length - 1])}</Badge>
-                <Avatar
-                  id={selected.userId}
-                  name={selected.profile.fullName}
-                  email={selected.profile.email}
-                  src={selected.profile.avatarUrl}
-                  size={38}
-                />
+          <>
+            <div className="overflow-hidden rounded-xl border border-line bg-white">
+              {/* header row */}
+              <div className="hidden items-center gap-3 border-b border-line bg-[#fcfcfe] px-4 py-2.5 text-[11px] font-medium tracking-[.04em] text-faint uppercase sm:flex">
+                <span className="flex-1">Person</span>
+                <span className="flex w-[266px] shrink-0 items-center justify-between">
+                  {week.map((date) => (
+                    <span key={date} className="w-[34px] text-center">
+                      {weekdayOf(date).slice(0, 2)}
+                    </span>
+                  ))}
+                </span>
+                <span className="w-[72px] shrink-0 text-right">Free</span>
               </div>
-            }
-          >
-            <AvailabilityGrid
-              key={selectedId}
-              mode="read"
-              dates={dates}
-              today={today}
-              initial={availability[selectedId] ?? {}}
-              emptyHint="this teammate edits their own calendar."
-            />
-          </Section>
+
+              {freelancers.map((m) => {
+                const days = availability[m.userId] ?? {};
+                const totalFree = week.reduce((n, d) => n + countStates(days[d] ?? {}).free, 0);
+                const open = selectedId === m.userId;
+                return (
+                  <div
+                    key={m.userId}
+                    className={`border-b border-line last:border-b-0 ${open ? "bg-[#fbfbfe]" : ""}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 sm:flex-nowrap">
+                      <a
+                        href={`/app/availability?member=${m.userId}`}
+                        className="flex min-w-0 flex-1 items-center gap-2.5"
+                      >
+                        <Avatar
+                          id={m.userId}
+                          name={m.profile.fullName}
+                          email={m.profile.email}
+                          src={m.profile.avatarUrl}
+                          size={28}
+                        />
+                        <span className="truncate text-[13px] font-medium text-ink">
+                          {m.profile.fullName ?? m.profile.email}
+                        </span>
+                      </a>
+
+                      <span className="flex w-full items-center justify-between sm:w-[266px] sm:shrink-0">
+                        {week.map((date) => {
+                          const day = days[date] ?? {};
+                          const c = countStates(day);
+                          // A day reads at a glance: mostly free / mostly busy / nothing said.
+                          const tone =
+                            c.free === 0 && c.busy === 0
+                              ? "empty"
+                              : c.free >= c.busy
+                                ? "free"
+                                : "busy";
+                          return (
+                            <span
+                              key={date}
+                              title={`${weekdayOf(date)} — ${c.free}h free, ${c.busy}h busy, ${c.unassigned}h unassigned`}
+                              className={`relative flex h-8 w-[34px] items-end justify-center overflow-hidden rounded-md border text-[9.5px] font-medium tabular-nums ${
+                                tone === "empty"
+                                  ? "border-dashed border-line-2 bg-[#fbfbfe] text-faint"
+                                  : tone === "free"
+                                    ? "border-[#cdeedd] bg-ok-soft/70 text-[#047857]"
+                                    : "border-[#f6d4d4] bg-bad-soft/70 text-[#b91c1c]"
+                              }`}
+                            >
+                              {/* the filled bar = share of the day that is free */}
+                              {tone !== "empty" ? (
+                                <i
+                                  className={`absolute inset-x-0 bottom-0 ${tone === "free" ? "bg-ok/35" : "bg-bad/30"}`}
+                                  style={{ height: `${Math.round((c.free / Math.max(c.free + c.busy, 1)) * 100)}%` }}
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <span className="pb-1.5">—</span>
+                              )}
+                              <span className="relative pb-1.5">{tone === "empty" ? "" : c.free}</span>
+                            </span>
+                          );
+                        })}
+                      </span>
+
+                      <span className="w-[72px] shrink-0 text-right text-[12.5px] font-medium tabular-nums text-ink-2">
+                        {totalFree}h
+                      </span>
+                    </div>
+
+                    {open ? (
+                      <div className="border-t border-line bg-white px-4 py-4">
+                        <AvailabilityGrid
+                          key={m.userId}
+                          mode="read"
+                          dates={dates}
+                          today={today}
+                          initial={days}
+                          emptyHint="This teammate edits their own calendar."
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="px-1 text-[12px] text-faint">
+              Select a person to open their full week. Green is free, red is busy, grey means they
+              haven&apos;t filled it in.
+            </p>
+          </>
         )}
       </div>
     );
   }
 
   /* --------------------------- MEMBER: editable ---------------------------- */
-  const availability = await store.getAvailability(orgId, [session.membership.userId], dates);
+  const availability = await store.getAvailabilityStates(orgId, [session.membership.userId], dates);
   const mine = availability[session.membership.userId] ?? {};
-  const freeNext7 = dates.slice(0, 7).reduce((sum, d) => sum + (mine[d]?.length ?? 0), 0);
+  const freeNext7 = dates
+    .slice(0, 7)
+    .reduce((sum, d) => sum + countStates(mine[d] ?? {}).free, 0);
 
   return (
     <div className="space-y-5">
@@ -104,7 +187,7 @@ export default async function AvailabilityPage({
         <div>
           <h1 className="h1">When are you free?</h1>
           <p className="lede">
-            Paint the hours you&apos;re available this week. Your admin sees this instantly.
+            Paint each hour free, busy or unassigned. Your admin sees this instantly.
           </p>
         </div>
         <Badge tone="green">{session.membership.capacity}h weekly capacity</Badge>

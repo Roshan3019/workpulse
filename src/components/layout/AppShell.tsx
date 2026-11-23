@@ -30,6 +30,12 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </>
   ),
+  teams: (
+    <>
+      <path d="M4 7h16M4 12h16M4 17h10" />
+      <circle cx="19" cy="17" r="2" />
+    </>
+  ),
   availability: (
     <>
       <circle cx="12" cy="12" r="10" />
@@ -78,7 +84,8 @@ const MEMBER_NAV: NavItem[] = [
 const ADMIN_NAV: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: "dashboard" },
   { href: "/app/tasks", label: "All Tasks", icon: "tasks" },
-  { href: "/app/team", label: "Team", icon: "team" },
+  { href: "/app/team", label: "People", icon: "team" },
+  { href: "/app/teams", label: "Teams", icon: "teams" },
   { href: "/app/availability", label: "Availability", icon: "availability" },
   { href: "/app/settings", label: "Settings", icon: "settings" },
 ];

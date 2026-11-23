@@ -4,20 +4,28 @@ import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Alert } from "@/components/ui/Modal";
 import { saveTaskAction, type ActionResult } from "@/lib/actions/tasks";
-import type { Member, Task } from "@/lib/types";
+import type { Member, Task, Team } from "@/lib/types";
 import { addDays, countdownLabel, todayISO, TIME_PRESETS } from "@/lib/dates";
 
 const initial: ActionResult = {};
 
 type Props = {
   members: Member[];
+  teams?: Team[];
   task?: Task;
   triggerClassName?: string;
   triggerLabel?: string;
   variant?: "primary" | "icon";
 };
 
-export function TaskDialog({ members, task, triggerClassName, triggerLabel, variant = "primary" }: Props) {
+export function TaskDialog({
+  members,
+  teams = [],
+  task,
+  triggerClassName,
+  triggerLabel,
+  variant = "primary",
+}: Props) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const editing = Boolean(task);
@@ -111,6 +119,20 @@ export function TaskDialog({ members, task, triggerClassName, triggerLabel, vari
               </select>
             </div>
           </div>
+
+          {teams.length ? (
+            <div className="field">
+              <label htmlFor="teamId">Team</label>
+              <select id="teamId" name="teamId" defaultValue={task?.teamId ?? ""}>
+                <option value="">No team — studio-wide</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           <div className="field">
             <label htmlFor="description">Description / reference link</label>

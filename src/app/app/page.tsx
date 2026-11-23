@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { OverallSlots } from "@/components/dashboard/OverallSlots";
+import { TeamSwitcher } from "@/components/dashboard/TeamSwitcher";
 import { WorkloadList } from "@/components/dashboard/WorkloadList";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { EmptyState, Section } from "@/components/ui";
@@ -9,6 +10,7 @@ import { orgMembers } from "@/lib/data/request-cache";
 import { countdownLabel, dueDateOf, dueLabel, nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
+import { hoursFromStates } from "@/lib/availability";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -19,28 +21,52 @@ const STATUS_TONE = {
   done: "pill-green",
 } as const;
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ team?: string }>;
+}) {
   const session = await requireSession();
   if (!isAdminRole(session.membership.role)) redirect("/app/my-tasks");
 
   const store = getStore();
   const orgId = session.organization.id;
-  const [members, tasks, tz] = await Promise.all([
+  const [members, allTasks, tz, teams, params] = await Promise.all([
     orgMembers(orgId),
     store.listTasks(orgId),
     getUserTimeZone(),
+    store.listTeams(orgId),
+    searchParams,
   ]);
 
-  const freelancers = members.filter((m) => m.role === "member");
+  /*
+   * The switcher is a query param, so "Overall" and each team are separate,
+   * linkable views. An unknown slug falls back to Overall rather than 404ing.
+   */
+  const selectedTeam = teams.find((t) => t.slug === params.team) ?? null;
+  const tasks = selectedTeam ? allTasks.filter((t) => t.teamId === selectedTeam.id) : allTasks;
+
+  const teamMembership = new Set(selectedTeam?.memberIds ?? []);
+  const freelancers = members.filter(
+    (m) => m.role === "member" && (!selectedTeam || teamMembership.has(m.userId)),
+  );
   const openTasks = tasks.filter((t) => t.status !== "done");
   const totalHours = openTasks.reduce((sum, t) => sum + Number(t.estHours), 0);
   const doneCount = tasks.filter((t) => t.status === "done").length;
 
   const dates = nextDatesIn(7, tz);
-  const availability = await store.getAvailability(
+  const availability = await store.getAvailabilityStates(
     orgId,
     freelancers.map((m) => m.userId),
     dates,
+  );
+
+  // Legacy hour map for the widgets that still think in "free hours".
+  const freeHours: Record<string, Record<string, number[]>> = Object.fromEntries(
+    Object.entries(availability).map(([userId, days]) => [
+      userId,
+      Object.fromEntries(Object.entries(days).map(([date, states]) => [date, hoursFromStates(states)])),
+    ]),
   );
 
   // Sorted by the real due moment (date + time), not just the date string.
@@ -62,7 +88,7 @@ export default async function DashboardPage() {
     {
       label: "Freelancers",
       value: freelancers.length,
-      note: "Members on the team",
+      note: selectedTeam ? `In ${selectedTeam.name}` : "Members on the team",
       tint: "bg-brand-soft text-brand",
       icon: icon(
         <>
@@ -113,11 +139,19 @@ export default async function DashboardPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="h1">Team pulse, right now</h1>
-          <p className="lede">Who&apos;s free, who&apos;s slammed, and what&apos;s due next — at a glance.</p>
+          <h1 className="h1">{selectedTeam ? selectedTeam.name : "Team pulse, right now"}</h1>
+          <p className="lede">
+            {selectedTeam
+              ? `Everything happening in ${selectedTeam.name} — people, hours and deadlines.`
+              : "Who's free, who's slammed, and what's due next — at a glance."}
+          </p>
         </div>
-        <TaskDialog members={members} />
+        <TaskDialog members={members} teams={teams} />
       </div>
+
+      {teams.length ? (
+        <TeamSwitcher teams={teams} active={selectedTeam?.slug ?? null} />
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
@@ -134,7 +168,7 @@ export default async function DashboardPage() {
 
       <WorkloadList members={freelancers} tasks={tasks} />
 
-      <OverallSlots members={freelancers} availability={availability} dates={dates} />
+      <OverallSlots members={freelancers} availability={freeHours} dates={dates} />
 
       <Section
         title="Next deadlines"

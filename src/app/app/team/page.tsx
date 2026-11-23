@@ -7,6 +7,7 @@ import { orgMembers } from "@/lib/data/request-cache";
 import { nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
+import { countStates } from "@/lib/availability";
 
 export const metadata = { title: "Team" };
 export const dynamic = "force-dynamic";
@@ -20,12 +21,12 @@ export default async function TeamPage() {
   const [members, tz] = await Promise.all([orgMembers(orgId), getUserTimeZone()]);
   const dates = nextDatesIn(7, tz);
   const memberIds = members.filter((m) => m.role === "member").map((m) => m.userId);
-  const availability = await store.getAvailability(orgId, memberIds, dates);
+  const availability = await store.getAvailabilityStates(orgId, memberIds, dates);
 
   const freeHours = Object.fromEntries(
     Object.entries(availability).map(([userId, map]) => [
       userId,
-      dates.reduce((sum, d) => sum + (map[d]?.length ?? 0), 0),
+      dates.reduce((sum, d) => sum + countStates(map[d] ?? {}).free, 0),
     ]),
   );
 

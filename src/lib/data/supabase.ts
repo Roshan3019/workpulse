@@ -1,7 +1,9 @@
 import "server-only";
 import { createSupabaseServerClient } from "../supabase/server";
+import { hoursFromStates, normaliseStates } from "../availability";
 import type {
   AvailabilityMap,
+  AvailabilityStates,
   Invite,
   Member,
   Membership,
@@ -9,7 +11,9 @@ import type {
   Organization,
   PlanTier,
   Profile,
+  SlotState,
   Task,
+  Team,
 } from "../types";
 import type { DataStore, InviteLookup, TaskFilters } from "./types";
 
@@ -53,8 +57,29 @@ const taskFromRow = (r: Row): Task => ({
   deadline: r.deadline,
   startDate: r.start_date ?? null,
   dueTime: r.due_time ? String(r.due_time).slice(0, 5) : null,
+  teamId: r.team_id ?? null,
   createdAt: r.created_at,
 });
+
+const teamFromRow = (r: Row): Team => ({
+  id: r.id,
+  orgId: r.org_id,
+  name: r.name,
+  slug: r.slug,
+  memberIds: ((r.team_members ?? []) as { user_id: string }[]).map((m) => m.user_id),
+  createdAt: r.created_at,
+});
+
+/** "Web Team" -> "web-team". Strips accents so slugs stay URL-safe. */
+export function slugify(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
 
 const inviteFromRow = (r: Row): Invite => ({
   id: r.id,
@@ -161,6 +186,7 @@ export class SupabaseStore implements DataStore {
     let q = sb.from("tasks").select("*").eq("org_id", orgId);
     if (filters.onlyForUser) q = q.eq("assignee_id", filters.onlyForUser);
     if (filters.assigneeId) q = q.eq("assignee_id", filters.assigneeId);
+    if (filters.teamId) q = q.eq("team_id", filters.teamId);
     if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
     if (filters.search) q = q.or(`title.ilike.%${filters.search}%,client.ilike.%${filters.search}%`);
     const { data, error } = await q;
@@ -262,6 +288,163 @@ export class SupabaseStore implements DataStore {
         { org_id: orgId, user_id: userId, slot_date: date, hours: clean },
         { onConflict: "org_id,user_id,slot_date" },
       );
+    fail(error, "save availability");
+  }
+
+  /* ------------------------------- teams ------------------------------- */
+
+  async listTeams(orgId: string): Promise<Team[]> {
+    const sb = await this.sb();
+    // One round trip: teams plus their rosters via the embedded select.
+    const { data, error } = await sb
+      .from("teams")
+      .select("id, org_id, name, slug, created_at, team_members(user_id)")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: true });
+    fail(error, "load teams");
+    return ((data ?? []) as Row[]).map(teamFromRow);
+  }
+
+  async createTeam(orgId: string, name: string, memberIds: string[]): Promise<Team> {
+    const sb = await this.sb();
+    const clean = name.trim();
+    if (!clean) throw new Error("Give the team a name");
+
+    // Slugs are unique per studio; retry on the unlikely collision rather than
+    // failing the create with a database error the user cannot act on.
+    const base = slugify(clean) || "team";
+    let slug = base;
+    for (let attempt = 1; attempt <= 20; attempt++) {
+      const { data, error } = await sb
+        .from("teams")
+        .insert({ org_id: orgId, name: clean, slug })
+        .select("id, org_id, name, slug, created_at")
+        .single();
+      if (!error) {
+        const team = teamFromRow({ ...data, team_members: [] });
+        if (memberIds.length) await this.setTeamMembers(orgId, team.id, memberIds);
+        return { ...team, memberIds };
+      }
+      if (!/duplicate key|unique/i.test(error.message)) fail(error, "create team");
+      slug = `${base}-${attempt + 1}`;
+    }
+    throw new Error("Could not find a free name for that team — try a slightly different one");
+  }
+
+  async updateTeam(orgId: string, teamId: string, patch: { name?: string }): Promise<void> {
+    const sb = await this.sb();
+    if (patch.name === undefined) return;
+    const clean = patch.name.trim();
+    if (!clean) throw new Error("Give the team a name");
+    const { error } = await sb
+      .from("teams")
+      .update({ name: clean })
+      .eq("org_id", orgId)
+      .eq("id", teamId);
+    fail(error, "rename team");
+  }
+
+  async deleteTeam(orgId: string, teamId: string): Promise<void> {
+    const sb = await this.sb();
+    // tasks.team_id is ON DELETE SET NULL, so tasks survive as studio-wide.
+    const { error } = await sb.from("teams").delete().eq("org_id", orgId).eq("id", teamId);
+    fail(error, "delete team");
+  }
+
+  async setTeamMembers(orgId: string, teamId: string, memberIds: string[]): Promise<void> {
+    const sb = await this.sb();
+    const wanted = [...new Set(memberIds)];
+
+    const { data: current, error: readError } = await sb
+      .from("team_members")
+      .select("user_id")
+      .eq("org_id", orgId)
+      .eq("team_id", teamId);
+    fail(readError, "load team roster");
+
+    const have = new Set(((current ?? []) as Row[]).map((r) => r.user_id as string));
+    const toAdd = wanted.filter((id) => !have.has(id));
+    const toRemove = [...have].filter((id) => !wanted.includes(id));
+
+    // Only touch what actually changed — this is the edit dialog's save, and it
+    // must not churn rows on every open/close.
+    if (toRemove.length) {
+      const { error } = await sb
+        .from("team_members")
+        .delete()
+        .eq("org_id", orgId)
+        .eq("team_id", teamId)
+        .in("user_id", toRemove);
+      fail(error, "remove team members");
+    }
+    if (toAdd.length) {
+      const { error } = await sb
+        .from("team_members")
+        .insert(toAdd.map((userId) => ({ team_id: teamId, user_id: userId, org_id: orgId })));
+      fail(error, "add team members");
+    }
+  }
+
+  /* ---------------------------- availability ---------------------------- */
+
+  async getAvailabilityStates(
+    orgId: string,
+    userIds: string[],
+    dates: string[],
+  ): Promise<Record<string, AvailabilityStates>> {
+    const out: Record<string, AvailabilityStates> = Object.fromEntries(userIds.map((id) => [id, {}]));
+    if (!userIds.length || !dates.length) return out;
+    const sb = await this.sb();
+    const { data, error } = await sb
+      .from("availability")
+      .select("user_id, slot_date, states, hours")
+      .eq("org_id", orgId)
+      .in("user_id", userIds)
+      .in("slot_date", dates);
+    fail(error, "load availability");
+    for (const row of (data ?? []) as Row[]) {
+      const map = out[row.user_id] ?? (out[row.user_id] = {});
+      // Fall back to the legacy hours array for any row the backfill missed.
+      const states = normaliseStates(row.states);
+      map[row.slot_date] = Object.keys(states).length
+        ? states
+        : Object.fromEntries(((row.hours ?? []) as number[]).map((h) => [Number(h), "free" as const]));
+    }
+    return out;
+  }
+
+  async saveAvailabilityStates(
+    orgId: string,
+    userId: string,
+    date: string,
+    states: Record<number, SlotState>,
+  ): Promise<void> {
+    const sb = await this.sb();
+    const entries = Object.entries(states).filter(
+      ([h, v]) => Number.isInteger(Number(h)) && Number(h) >= 0 && Number(h) <= 23 && (v === "free" || v === "busy"),
+    );
+    if (!entries.length) {
+      const { error } = await sb
+        .from("availability")
+        .delete()
+        .eq("org_id", orgId)
+        .eq("user_id", userId)
+        .eq("slot_date", date);
+      fail(error, "clear availability");
+      return;
+    }
+    // `hours` is still written by a trigger from `states`; sending it here too
+    // keeps the row correct even if the trigger is ever dropped.
+    const { error } = await sb.from("availability").upsert(
+      {
+        org_id: orgId,
+        user_id: userId,
+        slot_date: date,
+        states: Object.fromEntries(entries) as Record<string, SlotState>,
+        hours: hoursFromStates(states),
+      },
+      { onConflict: "org_id,user_id,slot_date" },
+    );
     fail(error, "save availability");
   }
 

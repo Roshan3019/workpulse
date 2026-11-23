@@ -136,39 +136,43 @@
 }
 
 /* availability grid cells ------------------------------------------------- */
+/* Three states, three looks: green = free, light red = busy, grey = unassigned. */
 .cell {
   height: 38px;
-  border-radius: 8px;
-  background: #eef1f8;
-  transition:
-    background 0.12s ease,
-    transform 0.12s ease;
+  border-radius: 7px;
+  background: #f4f5fa;
   cursor: pointer;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
-.cell:hover {
-  background: #e2e7f2;
+.cell[data-state="unassigned"] {
+  box-shadow: inset 0 0 0 1px #e7e9f2;
 }
-.cell[data-free="true"] {
+.cell[data-state="unassigned"]:hover {
+  background: #ebeef7;
+}
+.cell[data-state="free"] {
   background: var(--color-ok);
 }
-.cell[data-free="true"]:hover {
+.cell[data-state="free"]:hover {
   background: var(--color-ok-dark);
+}
+.cell[data-state="busy"] {
+  background: color-mix(in oklab, var(--color-bad) 42%, white);
+}
+.cell[data-state="busy"]:hover {
+  background: color-mix(in oklab, var(--color-bad) 58%, white);
 }
 /* Today's row gets a subtle tint instead of an outline on every cell. */
 .cell[data-selected="true"] {
-  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.22);
+  box-shadow: inset 0 0 0 1.5px rgba(15, 17, 26, 0.28);
 }
 .cell[data-readonly="true"] {
   cursor: default;
-}
-.cell[data-readonly="true"]:hover {
-  background: #eef1f8;
-}
-.cell[data-readonly="true"][data-free="true"]:hover {
-  background: var(--color-ok);
 }
 @media (max-width: 640px) {
   .cell {
