@@ -55,6 +55,14 @@
     outline: 2px solid var(--color-brand);
     outline-offset: 2px;
   }
+  /*
+   * A chip that already carries a coloured border gets its focus ring inset.
+   * An offset outline around a 2px border reads as a doubled halo, which is
+   * what the "Tomorrow" pill looked like in the screenshot.
+   */
+  .chip:focus-visible {
+    outline-offset: -3px;
+  }
 }
 
 @layer components {

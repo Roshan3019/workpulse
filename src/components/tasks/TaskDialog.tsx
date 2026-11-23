@@ -230,7 +230,7 @@ export function TaskDialog({
                       type="button"
                       aria-pressed={active}
                       onClick={() => setDueDate(addDays(todayISO(), option.days))}
-                      className={`h-8 rounded-full border px-3 text-[12px] font-semibold transition ${
+                      className={`chip h-8 rounded-full border px-3 text-[12px] font-semibold transition ${
                         active
                           ? "border-brand bg-brand text-white shadow-[0_3px_10px_rgba(79,70,229,.28)]"
                           : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
@@ -254,7 +254,7 @@ export function TaskDialog({
                       type="button"
                       aria-pressed={active}
                       onClick={() => setDueTime(preset.value)}
-                      className={`h-8 rounded-full border px-3 text-[12px] font-semibold transition ${
+                      className={`chip h-8 rounded-full border px-3 text-[12px] font-semibold transition ${
                         active
                           ? "border-brand bg-brand text-white shadow-[0_3px_10px_rgba(79,70,229,.28)]"
                           : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
