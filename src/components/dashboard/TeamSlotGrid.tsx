@@ -293,56 +293,6 @@ export function TeamSlotGrid({
             </div>
           </div>
 
-          {/*
-            The day in one line, 8a to 7p. A phone shows a third of the hour
-            columns above, so this bar is what keeps the whole day honest at
-            every width: green = everyone free, red = some, grey = nobody.
-          */}
-          <div className="mt-3 border-t border-line pt-3">
-            <div className="flex items-center gap-2">
-              <span className="w-[88px] shrink-0 text-[10px] font-medium tracking-[.06em] text-faint uppercase sm:w-[132px]">
-                Whole day
-              </span>
-              <div className="flex min-w-0 flex-1 gap-[2px]">
-                {ALL_HOURS.map((hour, index) => {
-                  const count = allHourFree[index];
-                  const state = count === 0 ? "unassigned" : count === total ? "free" : "busy";
-                  return (
-                    <div
-                      key={hour}
-                      className="slot h-2 min-w-0 flex-1"
-                      data-state={state}
-                      title={`${hourLabel(hour)}–${hourLabel(hour + 1)} · ${count} of ${total} free`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-semibold text-faint">
-              <span className="w-[88px] shrink-0 sm:w-[132px]" />
-              <span>8a</span>
-              <span className="ml-auto flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                {(
-                  [
-                    { label: "Everyone", state: "free" },
-                    { label: "Some", state: "busy" },
-                    { label: "Nobody", state: "unassigned" },
-                  ] as const
-                ).map((key) => (
-                  <span key={key.label} className="inline-flex items-center gap-1">
-                    <i
-                      className="slot h-2 w-2 rounded-[2px]"
-                      data-state={key.state}
-                      aria-hidden="true"
-                    />
-                    {key.label}
-                  </span>
-                ))}
-              </span>
-              <span className="ml-auto">7p</span>
-            </div>
-          </div>
-
           <p className="mt-3 text-[12px] text-faint">
             {totalFree} {totalFree === 1 ? "free hour" : "free hours"} across the team on{" "}
             {dayLabel(date)}

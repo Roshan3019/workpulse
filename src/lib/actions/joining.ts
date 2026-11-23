@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getStore } from "../data";
-import { requireAdmin, requireSession } from "../session";
+import { getAuthContext, requireAdmin, requireSession } from "../session";
 import type { WeeklyDefault } from "../types";
 
 export type ActionResult = { error?: string; ok?: boolean; message?: string };
@@ -66,18 +67,39 @@ export async function rotateJoinLinkAction(): Promise<ActionResult> {
 /* Join requests (the requester's side)                                       */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Ask to join. Signed in is the only requirement.
+ *
+ * This used to call `requireSession`, which demands a session *with a studio*
+ * and redirects to /onboarding otherwise — so a brand-new account that came
+ * from a join link was asked to create a studio before it could ask to join
+ * the one it was looking at. Asking is the opposite of starting a studio:
+ * nothing here may depend on already having one.
+ */
 export async function requestToJoinAction(token: string, note?: string): Promise<ActionResult> {
-  const session = await requireSession();
+  const ctx = await getAuthContext();
+  if (!ctx) redirect(`/login?next=${encodeURIComponent(`/join/${token}`)}`);
+
+  let alreadyPending = false;
   try {
-    const result = await getStore().requestToJoin(token, session.user.id, note ?? null);
-    if (result.alreadyPending) {
-      return { ok: true, message: "You already have a request waiting — the studio will get to it." };
-    }
+    const result = await getStore().requestToJoin(token, ctx.user.id, note ?? null);
+    alreadyPending = result.alreadyPending;
   } catch (error) {
     return { error: (error as Error).message };
   }
+
   revalidatePath(`/join/${token}`);
-  return { ok: true, message: "Request sent. An admin will approve it shortly." };
+  // Onboarding decides between "create a studio" and "you're waiting on X",
+  // and both the dashboard and settings show the pending count.
+  revalidatePath("/onboarding");
+  revalidatePath("/app", "layout");
+
+  return {
+    ok: true,
+    message: alreadyPending
+      ? "You already have a request waiting — the studio will get to it."
+      : "Request sent. An admin will approve it shortly.",
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -96,8 +118,9 @@ export async function approveJoinRequestAction(requestId: string): Promise<Actio
   } catch (error) {
     return { error: (error as Error).message };
   }
-  revalidatePath("/app");
+  revalidatePath("/app", "layout");
   revalidatePath("/app/team");
+  revalidatePath("/onboarding");
   return { ok: true, message: `${name} is in. They can sign in and start now.` };
 }
 
@@ -108,6 +131,7 @@ export async function declineJoinRequestAction(requestId: string): Promise<Actio
   } catch (error) {
     return { error: (error as Error).message };
   }
-  revalidatePath("/app");
+  revalidatePath("/app", "layout");
+  revalidatePath("/onboarding");
   return { ok: true, message: "Request declined." };
 }

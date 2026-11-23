@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Badge, Logo, LogoMark } from "@/components/ui";
 import { Alert } from "@/components/ui/Modal";
 import { createOrganizationAction } from "@/lib/actions/org";
+import { getStore } from "@/lib/data";
 import { getAuthContext } from "@/lib/session";
 import { env } from "@/lib/env";
 import { isAdminRole } from "@/lib/types";
@@ -60,6 +61,67 @@ const MEMBER_TOUR = [
 export default async function OnboardingPage() {
   const ctx = await getAuthContext();
   if (!ctx) redirect("/login");
+
+  /*
+   * Waiting on a studio you already asked to join.
+   *
+   * This comes before "name your workspace": someone who used a join link has
+   * already told us what they want, and asking them to create a studio is how
+   * they end up as the owner of an empty workspace instead of a member of the
+   * one that invited them.
+   */
+  const pendingRequests = ctx.membership ? [] : await getStore().listMyJoinRequests(ctx.user.id);
+  if (!ctx.membership && pendingRequests.length > 0) {
+    const first = pendingRequests[0];
+    const sent = new Date(first.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+    return (
+      <div className="min-h-screen">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
+          <Logo />
+        </div>
+
+        <main className="mx-auto max-w-lg px-5 py-10">
+          <div className="card p-6 sm:p-8">
+            <Badge tone="amber">Waiting for approval</Badge>
+            <h1 className="mt-3 text-[24px] font-semibold tracking-[-0.02em]">
+              Your request to join {first.orgName} is with their admin
+            </h1>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
+              You asked on {sent}. Nothing else is needed from you — the moment an admin approves it,
+              signing in puts you straight into {first.orgName}.
+            </p>
+
+            {first.note ? (
+              <p className="mt-4 border-l-2 border-line-2 pl-3 text-[12.5px] leading-relaxed text-ink-2 italic">
+                “{first.note}”
+              </p>
+            ) : null}
+
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <Link href="/app" className="btn-primary flex-1 py-2.5 text-center">
+                Check again
+              </Link>
+              <Link href="/" className="btn-outline flex-1 py-2.5 text-center">
+                Back to site
+              </Link>
+            </div>
+
+            {pendingRequests.length > 1 ? (
+              <p className="mt-4 border-t border-line pt-4 text-[12px] leading-relaxed text-muted">
+                Also waiting on{" "}
+                {pendingRequests
+                  .slice(1)
+                  .map((r) => r.orgName)
+                  .join(", ")}
+                .
+              </p>
+            ) : null}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   // Signed in but no workspace yet → the real onboarding flow.
   if (!ctx.membership) {

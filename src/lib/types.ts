@@ -38,6 +38,12 @@ export interface Membership {
   userId: string;
   role: OrgRole;
   capacity: number;
+  /**
+   * When this membership was created. Optional because the UI never shows it,
+   * but the session uses it to pick the studio a sign-in opens: the most
+   * recently joined one wins over an older, emptier studio of their own.
+   */
+  createdAt?: string;
 }
 
 export interface Member extends Membership {
@@ -98,6 +104,20 @@ export interface JoinLink {
   orgId: string;
   token: string;
   enabled: boolean;
+  createdAt: string;
+}
+
+/**
+ * A pending request as the *requester* sees it: which studio, what they wrote,
+ * and when. Deliberately without the link token — the person clicked the link
+ * to get here, and remembering it for them turns a shared secret into state.
+ */
+export interface MyJoinRequest {
+  id: string;
+  orgId: string;
+  orgName: string;
+  status: JoinRequestStatus;
+  note: string | null;
   createdAt: string;
 }
 

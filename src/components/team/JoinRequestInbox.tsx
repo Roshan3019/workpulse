@@ -21,6 +21,22 @@ function since(iso: string): string {
 }
 
 /**
+ * Who asked, in the order of usefulness.
+ *
+ * The profile is the source of truth. When it is incomplete we still have to
+ * say *something* — this is the screen where somebody is let into the studio,
+ * and "No name given" over an Approve button is a guess. The account id is a
+ * last resort that at least matches what the admin can look up.
+ */
+function identity(profile: JoinRequest["profile"], userId: string) {
+  const name = profile.fullName?.trim() || null;
+  const email = profile.email?.trim() || null;
+  const label = name ?? email ?? "Unnamed account";
+  const detail = name && email ? email : name ? null : email ? null : `Signed-in account ${userId.slice(0, 8)}…`;
+  return { label, detail };
+}
+
+/**
  * People who used the common join link and are waiting to be let in.
  * Approving is the only way they become a member — the link itself grants
  * nothing, which is exactly what the client asked for.
@@ -49,7 +65,7 @@ export function JoinRequestInbox({ requests }: { requests: JoinRequest[] }) {
 
   return (
     <section className="overflow-hidden rounded-xl border border-line bg-white">
-      <div className="flex items-center gap-2.5 border-b border-line bg-[#fcfcfe] px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2.5 border-b border-line bg-[#fbfaf8] px-4 py-3">
         <h2 className="text-[13.5px] font-semibold text-ink">Waiting to join</h2>
         <span className="rounded-md bg-ink px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white">
           {requests.length}
@@ -60,49 +76,52 @@ export function JoinRequestInbox({ requests }: { requests: JoinRequest[] }) {
       </div>
 
       <ul className="divide-y divide-line">
-        {requests.map((request) => (
-          <li key={request.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-            <Avatar
-              id={request.userId}
-              name={request.profile.fullName}
-              email={request.profile.email}
-              src={request.profile.avatarUrl}
-              size={30}
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-medium text-ink">
-                {request.profile.fullName ?? request.profile.email}
-              </p>
-              <p className="truncate text-[12px] text-muted">
-                {request.profile.fullName ? request.profile.email : "No name given"} · asked {since(request.createdAt)}
-              </p>
-              {request.note ? (
-                <p className="mt-1 border-l-2 border-line-2 pl-2 text-[12px] leading-relaxed text-ink-2 italic">
-                  “{request.note}”
-                </p>
-              ) : null}
-            </div>
+        {requests.map((request) => {
+          const { label, detail } = identity(request.profile, request.userId);
+          const busy = pending && busyId === request.id;
 
-            <div className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:w-auto sm:items-center">
-              <button
-                type="button"
-                onClick={() => decide(request.id, false)}
-                disabled={pending && busyId === request.id}
-                className="h-8 rounded-md px-2.5 text-[12.5px] font-medium text-muted transition-colors hover:bg-[#f4f5fa] hover:text-ink disabled:opacity-50"
-              >
-                Decline
-              </button>
-              <button
-                type="button"
-                onClick={() => decide(request.id, true)}
-                disabled={pending && busyId === request.id}
-                className="btn-primary btn-sm justify-center"
-              >
-                {pending && busyId === request.id ? "Working…" : "Approve"}
-              </button>
-            </div>
-          </li>
-        ))}
+          return (
+            <li key={request.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <Avatar
+                id={request.userId}
+                name={request.profile.fullName}
+                email={request.profile.email}
+                src={request.profile.avatarUrl}
+                size={30}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-medium text-ink">{label}</p>
+                <p className="truncate text-[12px] text-muted">
+                  {detail ? `${detail} · ` : ""}asked {since(request.createdAt)}
+                </p>
+                {request.note ? (
+                  <p className="mt-1 border-l-2 border-line-2 pl-2 text-[12px] leading-relaxed text-ink-2 italic">
+                    “{request.note}”
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:w-auto sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => decide(request.id, false)}
+                  disabled={busy}
+                  className="h-8 rounded-md px-2.5 text-[12.5px] font-medium text-muted transition-colors hover:bg-[#f2efea] hover:text-ink disabled:opacity-50"
+                >
+                  Decline
+                </button>
+                <button
+                  type="button"
+                  onClick={() => decide(request.id, true)}
+                  disabled={busy}
+                  className="btn-primary btn-sm justify-center"
+                >
+                  {busy ? "Working…" : "Approve"}
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
 
       {message ? (

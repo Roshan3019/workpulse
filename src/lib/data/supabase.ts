@@ -8,6 +8,7 @@ import type {
   JoinLink,
   JoinRequest,
   Member,
+  MyJoinRequest,
   Membership,
   OrgRole,
   Organization,
@@ -112,6 +113,39 @@ export class SupabaseStore implements DataStore {
     const { data, error } = await sb.from("organizations").select("*").eq("id", orgId).maybeSingle();
     fail(error, "load organization");
     return data ? orgFromRow(data) : null;
+  }
+
+  async listMembershipsForUser(userId: string): Promise<Membership[]> {
+    const sb = await this.sb();
+    const { data, error } = await sb
+      .from("memberships")
+      .select("id, org_id, user_id, role, capacity, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    fail(error, "list memberships");
+    return ((data ?? []) as Row[]).map((row) => ({
+      ...membershipFromRow(row),
+      createdAt: row.created_at,
+    }));
+  }
+
+  async listOrgsForUser(userId: string): Promise<Organization[]> {
+    const sb = await this.sb();
+    const { data, error } = await sb
+      .from("memberships")
+      .select("org_id, role, organizations(id, name, slug, plan, seat_limit)")
+      .eq("user_id", userId);
+    fail(error, "list studios");
+    return ((data ?? []) as Row[])
+      .map((row) => row.organizations as Row | null)
+      .filter((org): org is Row => Boolean(org))
+      .map((org) => ({
+        id: org.id as string,
+        name: org.name as string,
+        slug: org.slug as string,
+        plan: org.plan as PlanTier,
+        seatLimit: org.seat_limit as number,
+      }));
   }
 
   async updateOrg(orgId: string, patch: { name?: string; plan?: PlanTier; seatLimit?: number }): Promise<void> {
@@ -617,26 +651,46 @@ export class SupabaseStore implements DataStore {
     const sb = await this.sb();
     const { data, error } = await sb
       .from("join_requests")
-      .select("*, profile:profiles!join_requests_user_id_fkey(id,email,full_name,avatar_url)")
+      .select("*")
       .eq("org_id", orgId)
       .eq("status", "pending")
       .order("created_at", { ascending: true });
     fail(error, "list join requests");
-    return ((data ?? []) as Row[]).map((r) => ({
-      id: r.id,
-      orgId: r.org_id,
-      userId: r.user_id,
-      profile: {
-        id: r.profile?.id ?? r.user_id,
-        email: r.profile?.email ?? "",
-        fullName: r.profile?.full_name ?? null,
-        avatarUrl: r.profile?.avatar_url ?? null,
-      },
-      note: r.note ?? null,
-      status: r.status,
-      createdAt: r.created_at,
-      decidedAt: r.decided_at ?? null,
-    }));
+    const rows = (data ?? []) as Row[];
+    if (rows.length === 0) return [];
+
+    /*
+     * The requester is not a member yet, so RLS on `profiles` hides them from a
+     * plain join — which is exactly how the inbox ended up saying "No name
+     * given" for everyone. 0009 adds a policy for admins with a pending
+     * request; this second, defensive lookup keeps the name on screen even if
+     * a project is still on 0007 (the row still shows the request, and the
+     * email/name arrive as soon as the migration runs).
+     */
+    const { data: profiles } = await sb
+      .from("profiles")
+      .select("id,email,full_name,avatar_url")
+      .in("id", rows.map((r) => r.user_id));
+    const byId = new Map<string, Row>(((profiles ?? []) as Row[]).map((p) => [String(p.id), p]));
+
+    return rows.map((r) => {
+      const profile = byId.get(String(r.user_id));
+      return {
+        id: r.id,
+        orgId: r.org_id,
+        userId: r.user_id,
+        profile: {
+          id: profile?.id ?? r.user_id,
+          email: profile?.email ?? "",
+          fullName: profile?.full_name ?? null,
+          avatarUrl: profile?.avatar_url ?? null,
+        },
+        note: r.note ?? null,
+        status: r.status,
+        createdAt: r.created_at,
+        decidedAt: r.decided_at ?? null,
+      };
+    });
   }
 
   async approveJoinRequest(orgId: string, requestId: string): Promise<void> {
@@ -657,6 +711,20 @@ export class SupabaseStore implements DataStore {
       approve: false,
     });
     fail(error, "decline join request");
+  }
+
+  async listMyJoinRequests(userId: string): Promise<MyJoinRequest[]> {
+    const sb = await this.sb();
+    const { data, error } = await sb.rpc("my_join_requests");
+    if (error) return [];
+    return ((data ?? []) as Row[]).map((r) => ({
+      id: r.id,
+      orgId: r.org_id,
+      orgName: r.org_name,
+      status: r.status,
+      note: r.note ?? null,
+      createdAt: r.created_at,
+    }));
   }
 
   async getMyJoinRequest(orgId: string, userId: string): Promise<JoinRequest | null> {

@@ -4,6 +4,7 @@ import type {
   Invite,
   JoinLink,
   JoinRequest,
+  MyJoinRequest,
   Member,
   Membership,
   OrgRole,
@@ -53,6 +54,10 @@ export interface DataStore {
 
   // org & membership -------------------------------------------------------
   getOrg(orgId: string): Promise<Organization | null>;
+  /** Every studio this user belongs to — drives the studio switcher. */
+  listOrgsForUser(userId: string): Promise<Organization[]>;
+  /** The raw membership rows (role + createdAt), newest first for the session. */
+  listMembershipsForUser(userId: string): Promise<Membership[]>;
   updateOrg(orgId: string, patch: { name?: string; plan?: PlanTier; seatLimit?: number }): Promise<void>;
   listMembers(orgId: string): Promise<Member[]>;
   getMembership(orgId: string, userId: string): Promise<Membership | null>;
@@ -110,6 +115,14 @@ export interface DataStore {
   declineJoinRequest(orgId: string, requestId: string): Promise<void>;
   /** The signed-in person's outstanding request, for the "waiting" screen. */
   getMyJoinRequest(orgId: string, userId: string): Promise<JoinRequest | null>;
+  /**
+   * Every studio the signed-in person is waiting on.
+   *
+   * A requester is not a member, so `organizations` is invisible to them and
+   * `getMyJoinRequest` needs an org id they may not know. This is the lookup
+   * that lets the join page — and onboarding — say "you already asked X".
+   */
+  listMyJoinRequests(userId: string): Promise<MyJoinRequest[]>;
 
   // weekly default ---------------------------------------------------------
   /** The member's reusable week, or null when they haven't set one. */
@@ -136,6 +149,16 @@ const U = {
   roshan2: "66666666-6666-4666-8666-666666666666",
   neha: "77777777-7777-4777-8777-777777777777",
   kabir: "88888888-8888-4888-8888-888888888888",
+  /**
+   * Two accounts that exist in auth but have no membership in Cinegem:
+   *
+   *   joiner    fresh signup — no studio at all, exactly the state that used to
+   *             be pushed into "create a studio" right after asking to join.
+   *   elsewhere owns a tiny studio of their own, so signing in with it shows the
+   *             studio switcher instead of silently picking one.
+   */
+  joiner: "aaaaaaaa-1111-4111-8111-111111111111",
+  elsewhere: "bbbbbbbb-2222-4222-8222-222222222222",
 } as const;
 
 export const DEMO_ORG_ID = "99999999-9999-4999-8999-999999999999";
@@ -149,10 +172,31 @@ export const DEMO_USERS: (Profile & { role: OrgRole; capacity: number })[] = [
   { id: U.roshan2, email: "roshanpatel193052005@gmail.com", fullName: "Roshan Patel", avatarUrl: null, role: "member", capacity: 40 },
   { id: U.neha, email: "neha.verma@demo.workpulse.io", fullName: "Neha Verma", avatarUrl: null, role: "member", capacity: 30 },
   { id: U.kabir, email: "kabir.rao@demo.workpulse.io", fullName: "Kabir Rao", avatarUrl: null, role: "member", capacity: 36 },
+  /*
+   * Not in Cinegem yet — `seedMemory` deliberately skips them when it builds
+   * memberships. They exist so the join flow can be walked through locally
+   * (ask → waiting → approved) without a Supabase project.
+   */
+  { id: U.joiner, email: "new.joiner@demo.workpulse.io", fullName: "New Joiner", avatarUrl: null, role: "member", capacity: 40 },
+  { id: U.elsewhere, email: "two.studios@demo.workpulse.io", fullName: "Sam Two-Studios", avatarUrl: null, role: "member", capacity: 40 },
 ];
+
+/**
+ * Demo accounts that intentionally have no membership in the main studio.
+ *
+ * `elsewhere` is *not* in this list: it belongs to both studios, which is the
+ * case that used to open the wrong one ("signed in with my admin email and got
+ * the empty studio I made earlier").
+ */
+export const DEMO_OUTSIDERS: string[] = [U.joiner];
+
+/** Studio ids used by the demo seed (a second, empty one for the switcher). */
+export const DEMO_SECOND_ORG_ID = "88888888-8888-4888-8888-888888888888";
 
 export interface MemoryDatabase {
   org: Organization;
+  /** Every studio in the demo, `org` included. */
+  orgs: Organization[];
   profiles: Profile[];
   memberships: Membership[];
   teams: Team[];
@@ -185,13 +229,39 @@ export function seedMemory(): MemoryDatabase {
     avatarUrl,
   }));
 
-  const memberships: Membership[] = DEMO_USERS.map((u) => ({
+  const secondOrg: Organization = {
+    id: DEMO_SECOND_ORG_ID,
+    name: "Two-Studios Design",
+    slug: "two-studios-design",
+    plan: "free",
+    seatLimit: 5,
+  };
+
+  const seededAt = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const memberships: Membership[] = DEMO_USERS.filter((u) => !DEMO_OUTSIDERS.includes(u.id)).map((u) => ({
     id: `mem-${u.id}`,
     orgId: org.id,
     userId: u.id,
     role: u.role,
     capacity: u.capacity,
+    createdAt: seededAt,
   }));
+
+  /*
+   * The two-studio account: it owns a small studio of its own and was approved
+   * into Cinegem *later*. The later membership is the one a sign-in should
+   * open — the account was last doing something in Cinegem, and the studio it
+   * made first is empty.
+   */
+  memberships.push({
+    id: `mem-${U.elsewhere}-own`,
+    orgId: secondOrg.id,
+    userId: U.elsewhere,
+    role: "owner",
+    capacity: 40,
+    // Older than the seeded Cinegem rows above, so "newest wins" is honest.
+    createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+  });
 
   // Declared before the tasks so each task's teamId refers to something real.
   const TEAM_WEB_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
@@ -263,6 +333,7 @@ export function seedMemory(): MemoryDatabase {
 
   return {
     org,
+    orgs: [org, secondOrg],
     profiles,
     memberships,
     teams,

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { Avatar, Badge, Logo } from "@/components/ui";
+import { OrgSwitcher } from "@/components/layout/OrgSwitcher";
 import { ROLE_LABEL, isAdminRole, type Session } from "@/lib/types";
 import { signOut } from "@/lib/actions/auth";
 
@@ -93,10 +94,13 @@ const ADMIN_NAV: NavItem[] = [
 export function AppShell({
   session,
   seatsUsed,
+  orgs = [],
   children,
 }: {
   session: Session;
   seatsUsed: number;
+  /** Every studio this account belongs to; the switcher hides itself below 2. */
+  orgs?: { id: string; name: string; role: string }[];
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -210,7 +214,10 @@ export function AppShell({
           </div>
         ) : null}
 
-        <main className="mx-auto w-full max-w-[1120px] flex-1 px-4 py-6 sm:px-7 sm:py-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1120px] flex-1 px-4 py-6 sm:px-7 sm:py-8">
+          <OrgSwitcher current={session.organization.id} orgs={orgs} email={session.user.email} />
+          {children}
+        </main>
 
         <footer className="mx-auto w-full max-w-[1120px] px-4 pb-8 text-center text-[11.5px] text-faint sm:px-7">
           WorkPulse · Team availability tracker

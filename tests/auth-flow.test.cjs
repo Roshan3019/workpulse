@@ -89,6 +89,15 @@ function startMock() {
         if (auth === `Bearer ${ACCESS_TOKEN}`) return send(200, SESSION.user);
         return send(401, { error: "invalid_token", error_description: "Invalid JWT", msg: "Invalid JWT" });
       }
+      /*
+       * A pending join request. The onboarding page asks "is anyone deciding
+       * on me?" before it offers "create a studio", and that must not be the
+       * reason a test fails for the wrong reason: answer with an empty list so
+       * this suite still exercises the no-studio branch.
+       */
+      if (url.pathname === "/rest/v1/rpc/my_join_requests") {
+        return send(200, []);
+      }
       // PostgREST: no profile row, no memberships -> user has a session but no org
       if (url.pathname.startsWith("/rest/v1/")) {
         const wantsObject = String(req.headers.accept || "").includes("object+json");

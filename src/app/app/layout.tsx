@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { orgMembers } from "@/lib/data/request-cache";
-import { requireSession } from "@/lib/session";
+import { getOrgMemberships, requireSession } from "@/lib/session";
 
 /*
  * NOTE: the function region deliberately is NOT set here.
@@ -14,10 +14,17 @@ import { requireSession } from "@/lib/session";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   // Shared with the page via React's request cache — see lib/data/request-cache.
-  const members = await orgMembers(session.organization.id);
+  const [members, orgs] = await Promise.all([
+    orgMembers(session.organization.id),
+    getOrgMemberships(),
+  ]);
 
   return (
-    <AppShell session={session} seatsUsed={members.length}>
+    <AppShell
+      session={session}
+      seatsUsed={members.length}
+      orgs={orgs.map((org) => ({ id: org.id, name: org.name, role: org.role }))}
+    >
       {children}
     </AppShell>
   );

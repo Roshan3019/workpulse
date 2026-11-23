@@ -67,7 +67,14 @@ export default async function JoinPage({
   // A signed-in visitor may have no studio yet (fresh signup) — that's fine
   // here, they're asking to join this one.
   const alreadyIn = session?.organization?.id === link.orgId;
-  const pending = session ? await getStore().getMyJoinRequest(link.orgId, session.user.id) : null;
+  /*
+   * Look up every pending request, not just this studio's. Someone can arrive
+   * holding a second link while the first request is still undecided, and the
+   * honest answer there is "you're already waiting on two studios" rather than
+   * a fresh "Send request" button.
+   */
+  const waitingOn = session ? await getStore().listMyJoinRequests(session.user.id) : [];
+  const pending = waitingOn.find((r) => r.orgId === link.orgId) ?? null;
 
   return (
     <Shell>
@@ -96,10 +103,27 @@ export default async function JoinPage({
       ) : pending ? (
         <div className="mt-6 rounded-lg border border-line bg-[#fbfaf8] px-3.5 py-3">
           <p className="text-[13px] font-medium text-ink">Your request is waiting</p>
-          <p className="mt-0.5 text-[12.5px] text-muted">
+          <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">
             Sent {new Date(pending.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}. An
             admin still needs to approve it. We&apos;ll let you in the moment they do.
           </p>
+          {pending.note ? (
+            <p className="mt-2 border-l-2 border-line-2 pl-2 text-[12px] leading-relaxed text-ink-2 italic">
+              “{pending.note}”
+            </p>
+          ) : null}
+          <p className="mt-2 text-[12px] text-faint">
+            Nothing else to do — you don&apos;t need a studio of your own.{" "}
+            <Link href="/app" className="underline">
+              Check again
+            </Link>
+            .
+          </p>
+          {waitingOn.length > 1 ? (
+            <p className="mt-2 text-[12px] text-faint">
+              You&apos;re also waiting on {waitingOn.filter((r) => r.orgId !== link.orgId).map((r) => r.orgName).join(", ")}.
+            </p>
+          ) : null}
         </div>
       ) : (
         <>

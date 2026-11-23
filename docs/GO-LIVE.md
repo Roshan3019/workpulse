@@ -237,10 +237,15 @@ Run these in a **private window** so you're signed out:
 | 9 | **Availability** as a freelancer → paint an hour **busy**, save | it stays light red after refresh; the admin roster shows it red too |
 | 10 | Freelancer → **My usual week** → set Mon–Fri, save → look at next week | next week is already filled in, without touching it |
 | 11 | Admin → **Settings → Join link → Copy**, open in a private window as a **new** account | the page says you're *requesting* to join, not joining |
-| 12 | Send that request, then approve it in the admin **dashboard** | the requester becomes a member; the inbox clears |
+| 12 | Send that request | the page says **"Your request is waiting"** — it must **not** ask you to create a studio |
+| 13 | Open `/onboarding` as that account | it says *waiting for approval*, not "name your workspace" |
+| 14 | Admin **dashboard** → look at the request | the row shows the person's **name and email**, never "No name given" |
+| 15 | Approve it | the inbox clears; the requester's next visit opens the dashboard as a member |
+| 16 | Sign in as an account that belongs to **two studios** | a **Your studios** bar appears; the switcher picks the one you joined last |
 
 If #2 fails → Step 6. If #3 fails → Step 1 (did you run `0003`?). If #4 errors → `0003` again.
-If #9 or #10 fails → did you run **`0006`** and **`0008`**? If #11 or #12 fails → **`0007`**.
+If #9 or #10 fails → did you run **`0006`** and **`0008`**? If #11–#15 fail → **`0007`** and **`0009`**.
+If #14 shows "No name given" the admin simply cannot read the requester's profile: run `0009`.
 
 ---
 
@@ -304,6 +309,7 @@ backs look broken rather than erroring:
 | `0006_availability_states.sql` | free / busy / unassigned | the availability grid saves nothing |
 | `0007_join_link_and_requests.sql` | the common join link + approval inbox | **Settings → Join link** errors |
 | `0008_availability_default.sql` | the weekly default | **My usual week** errors |
+| `0009_join_request_details.sql` | admins can see *who* asked; `my_join_requests()` | the inbox says "No name given", and the join page cannot tell a waiting requester apart from a new one |
 
 The `hours` column on `availability` is still present on purpose: `0006` keeps
 it in sync from `states` so older read paths stay correct. It can be dropped

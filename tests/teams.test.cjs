@@ -189,6 +189,26 @@ const OWNER = "11111111-1111-4111-8111-111111111111";
 
   check("both seeded teams map to real demo people", DEMO_USERS.length >= 6 && seeded.every((t) => t.memberIds.length > 0));
 
+  /*
+   * The demo seed has to be able to reproduce the join flow: an account with
+   * no studio at all, and one that belongs to two.
+   */
+  {
+    const { DEMO_OUTSIDERS } = loadTs("src/lib/data/types.ts");
+    const joiner = DEMO_OUTSIDERS[0];
+    check("the seed ships an account with no studio", (await store.listOrgsForUser(joiner)).length === 0);
+
+    const twoStudios = DEMO_USERS.find((u) => (u.email ?? "").includes("two.studios"));
+    const orgs = twoStudios ? await store.listOrgsForUser(twoStudios.id) : [];
+    check("…and one that belongs to two studios", orgs.length === 2, orgs.map((o) => o.name).join(", "));
+
+    // "Newest membership wins" is what stops a sign-in opening the empty
+    // studio the account made a day earlier.
+    const roster = twoStudios ? await store.listMembershipsForUser(twoStudios.id) : [];
+    roster.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+    check("…whose newest membership is the main studio", roster[0]?.orgId === DEMO_ORG_ID, String(roster[0]?.orgId));
+  }
+
 
   /* --------------------- weekly default (read-time) -------------------- */
   {
@@ -237,6 +257,17 @@ const OWNER = "11111111-1111-4111-8111-111111111111";
     check("the inbox shows who asked and why", inbox[0].userId === OUTSIDER && inbox[0].note === "I do motion design");
     check("the requester can see their own pending request", Boolean(await store.getMyJoinRequest(DEMO_ORG_ID, OUTSIDER)));
 
+    /*
+     * The requester is not a member, so they cannot see `organizations`. The
+     * lookup by user id is what lets onboarding and the join page say "you are
+     * waiting on Cinegem Studio" instead of asking them to create a studio.
+     */
+    const mine = await store.listMyJoinRequests(OUTSIDER);
+    check("a requester can list the studios they are waiting on", mine.length === 1, `${mine.length} rows`);
+    check("…and it names the studio", mine[0]?.orgName === "Cinegem Studio", String(mine[0]?.orgName));
+    check("…without needing to know the org id", mine[0]?.orgId === DEMO_ORG_ID);
+    check("someone with no requests gets an empty list", (await store.listMyJoinRequests(OUTSIDER2)).length === 0);
+
     const twice = await store.requestToJoin(link.token, OUTSIDER);
     check("asking twice keeps one request", twice.alreadyPending === true && (await store.listJoinRequests(DEMO_ORG_ID)).length === 1);
 
@@ -246,6 +277,7 @@ const OWNER = "11111111-1111-4111-8111-111111111111";
     check("they join as a member", after.find((m) => m.userId === OUTSIDER)?.role === "member");
     check("the inbox empties", (await store.listJoinRequests(DEMO_ORG_ID)).length === 0);
     check("their waiting state clears", (await store.getMyJoinRequest(DEMO_ORG_ID, OUTSIDER)) === null);
+    check("…and their request list empties too", (await store.listMyJoinRequests(OUTSIDER)).length === 0);
 
     let blocked = false;
     try { await store.requestToJoin(link.token, OUTSIDER); } catch { blocked = true; }

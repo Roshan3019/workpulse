@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { env, ORG_COOKIE } from "../env";
 import { getStore, memoryStore } from "../data";
-import { getAuthContext, requireAdmin } from "../session";
+import { getAuthContext, getOrgMemberships, requireAdmin } from "../session";
 import { createSupabaseServerClient } from "../supabase/server";
 import { inviteSchema, orgSchema, planSchema } from "../validation";
 import { PLANS, type PlanTier } from "../types";
@@ -23,14 +23,27 @@ export async function createOrganizationAction(formData: FormData): Promise<Acti
   if (!ctx) redirect("/login");
 
   if (env.demoMode) {
+    /*
+     * Demo mode has no create_organization RPC, so this shows what the live
+     * flow does: the account becomes the owner of the studio it just named.
+     * In the seed that is Cinegem Studio — the same studio the join link
+     * belongs to — which is precisely how the client ended up as the owner of
+     * an empty workspace after asking to join one. `requestToJoinAction` and
+     * this page now stop that from happening in the first place, and this
+     * branch is only reached by someone with neither a studio nor a request.
+     */
     const store = memoryStore;
     const org = await store.getOrg((await import("../data/types")).DEMO_ORG_ID);
     if (org) {
       await store.updateOrg(org.id, { name: parsed.data.name });
       const membership = await store.getMembership(org.id, ctx.user.id);
-      if (membership && membership.role !== "owner") {
+      if (!membership) {
+        await store.addMembership(org.id, ctx.user.id, "owner", 40);
+      } else if (membership.role !== "owner") {
         await store.updateMemberRole(org.id, membership.id, "owner");
       }
+      const cookieStore = await cookies();
+      cookieStore.set(ORG_COOKIE, org.id, { path: "/", sameSite: "lax" });
     }
     revalidatePath("/", "layout");
     redirect("/app");
@@ -39,8 +52,15 @@ export async function createOrganizationAction(formData: FormData): Promise<Acti
   if (ctx.membership) redirect("/app");
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("create_organization", { org_name: parsed.data.name });
+  const { data, error } = await supabase.rpc("create_organization", { org_name: parsed.data.name });
   if (error) return { error: error.message };
+
+  // Remember the choice: an account in several studios must open the one it
+  // just made, not whichever membership happens to sort first.
+  if (data) {
+    const cookieStore = await cookies();
+    cookieStore.set(ORG_COOKIE, String(data), { path: "/", sameSite: "lax" });
+  }
 
   revalidatePath("/", "layout");
   redirect("/app");
@@ -179,7 +199,17 @@ export async function transferOwnershipAction(userId: string): Promise<ActionRes
   return { ok: true, message: "Ownership transferred." };
 }
 
+/**
+ * Switch which studio this account is looking at.
+ *
+ * The id is checked against the caller's own memberships first: the cookie is
+ * signed-in state, but it must never be a way to ask for an org someone does
+ * not belong to.
+ */
 export async function switchOrgAction(orgId: string): Promise<void> {
+  const orgs = await getOrgMemberships();
+  if (!orgs.some((org) => org.id === orgId)) redirect("/app");
+
   const cookieStore = await cookies();
   cookieStore.set(ORG_COOKIE, orgId, { path: "/", sameSite: "lax" });
   revalidatePath("/", "layout");

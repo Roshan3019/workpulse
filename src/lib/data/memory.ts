@@ -7,6 +7,7 @@ import type {
   JoinLink,
   JoinRequest,
   Member,
+  MyJoinRequest,
   Membership,
   OrgRole,
   Organization,
@@ -52,7 +53,21 @@ export class MemoryStore implements DataStore {
   readonly kind = "memory" as const;
 
   async getOrg(orgId: string): Promise<Organization | null> {
-    return db().org.id === orgId ? { ...db().org } : null;
+    const d = db();
+    /*
+     * Demo mode can hold more than one studio — the seed ships an empty second
+     * one so the account switcher has something to switch to, and so the
+     * "I asked to join, don't make me create a studio" flow can be walked
+     * through locally.
+     */
+    const org = (d.org.id === orgId ? d.org : d.orgs.find((o) => o.id === orgId)) ?? null;
+    return org ? { ...org } : null;
+  }
+
+  async listOrgsForUser(userId: string): Promise<Organization[]> {
+    const d = db();
+    const ids = new Set(d.memberships.filter((m) => m.userId === userId).map((m) => m.orgId));
+    return d.orgs.filter((o) => ids.has(o.id)).map((o) => ({ ...o }));
   }
 
   async updateOrg(orgId: string, patch: { name?: string; plan?: PlanTier; seatLimit?: number }): Promise<void> {
@@ -64,6 +79,10 @@ export class MemoryStore implements DataStore {
     } else if (patch.seatLimit) {
       db().org.seatLimit = patch.seatLimit;
     }
+  }
+
+  async listMembershipsForUser(userId: string): Promise<Membership[]> {
+    return db().memberships.filter((m) => m.userId === userId).map((m) => ({ ...m }));
   }
 
   async listMembers(orgId: string): Promise<Member[]> {
@@ -78,6 +97,24 @@ export class MemoryStore implements DataStore {
 
   async getMembership(orgId: string, userId: string): Promise<Membership | null> {
     return db().memberships.find((m) => m.orgId === orgId && m.userId === userId) ?? null;
+  }
+
+  /* `addMembership` lives above, next to role changes: both write `memberships`. */
+
+  async addMembership(orgId: string, userId: string, role: OrgRole, capacity = 40): Promise<Membership> {
+    const d = db();
+    const existing = d.memberships.find((m) => m.orgId === orgId && m.userId === userId);
+    if (existing) return existing;
+    const membership: Membership = {
+      id: `mem-${userId}-${orgId.slice(0, 8)}`,
+      orgId,
+      userId,
+      role,
+      capacity,
+      createdAt: new Date().toISOString(),
+    };
+    d.memberships.push(membership);
+    return membership;
   }
 
   async updateMemberRole(orgId: string, membershipId: string, role: OrgRole): Promise<void> {
@@ -384,6 +421,21 @@ export class MemoryStore implements DataStore {
     return (
       db().joinRequests.find((r) => r.orgId === orgId && r.userId === userId && r.status === "pending") ?? null
     );
+  }
+
+  async listMyJoinRequests(userId: string): Promise<MyJoinRequest[]> {
+    const d = db();
+    return d.joinRequests
+      .filter((r) => r.userId === userId && r.status === "pending")
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map((r) => ({
+        id: r.id,
+        orgId: r.orgId,
+        orgName: d.joinLinks[r.orgId]?.orgName ?? (d.org.id === r.orgId ? d.org.name : "a studio"),
+        status: r.status,
+        note: r.note,
+        createdAt: r.createdAt,
+      }));
   }
 
   /* --------------------------- weekly default --------------------------- */
