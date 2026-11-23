@@ -1,40 +1,33 @@
 /**
  * Canonical public origin of the app, used for OAuth and email redirects.
  *
- * This deliberately does **not** trust the `Host` header alone: in dev the
- * server binds 0.0.0.0 and a request can arrive as `localhost` or `127.0.0.1`,
- * which produces redirect URLs that don't match the Supabase allow-list.
- * Precedence:
- *   1. `NEXT_PUBLIC_SITE_URL` — the canonical public URL (set this in prod)
- *   2. forwarded host/proto — what the browser actually used (Vercel, tunnels)
- *   3. the request's own host
+ * Precedence, in this order:
+ *   1. the host the browser actually used — `x-forwarded-host` on Vercel,
+ *      falling back to `Host`
+ *   2. `NEXT_PUBLIC_SITE_URL`, only when there is no request host at all
+ *
+ * (2) used to win, and that is exactly what broke Google sign-in on any URL
+ * that was not the configured one: the OAuth `redirectTo` pointed at
+ * `NEXT_PUBLIC_SITE_URL` while the browser was on a preview/project domain, so
+ * Supabase's allow-list and the PKCE verifier cookie disagreed and the user
+ * was dropped back on a sign-in page. The origin the user is *on* is the only
+ * one whose cookies will still exist when the provider sends them back, so it
+ * wins. Supabase's redirect allow-list is wildcarded for this project's
+ * `workpulse-*-roshan-s-team2.vercel.app` / `workpulse-*.vercel.app` hosts.
+ *
+ * This is not an open redirect: the result is only used to send the browser
+ * back to the host it is already on (and Vercel only routes its own hosts
+ * here). Paths are always relative and validated by the callers.
  */
 export function getOrigin(headers: Headers, fallback: string): string {
   const forwardedHost = headers.get("x-forwarded-host");
   const host = forwardedHost ?? headers.get("host");
   const proto =
-    headers.get("x-forwarded-proto") ?? (host && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host) ? "http" : "https");
+    headers.get("x-forwarded-proto") ??
+    (host && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host) ? "http" : "https");
 
-  const requestOrigin = host ? `${proto}://${host}` : null;
+  if (host) return `${proto}://${host}`;
 
-  // A configured site URL wins, but in local development it is often a
-  // placeholder — so only prefer it when it agrees with the host we were
-  // actually reached on, or when we're not on a loopback address.
   const configured = fallback?.replace(/\/$/, "");
-  if (configured) {
-    try {
-      const cfg = new URL(configured);
-      const cfgIsLoopback = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(cfg.hostname);
-      if (!requestOrigin) return configured;
-      const reqIsLoopback = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(requestOrigin.replace(/^https?:\/\//, "").replace(/:\d+$/, ""));
-      // Trust the configured value in production; in local dev prefer the host
-      // the browser is on so cookies and redirect URLs stay on one origin.
-      if (!cfgIsLoopback || reqIsLoopback) return configured;
-      return requestOrigin;
-    } catch {
-      return requestOrigin ?? configured;
-    }
-  }
-
-  return requestOrigin ?? "http://localhost:3000";
+  return configured || "http://localhost:3000";
 }

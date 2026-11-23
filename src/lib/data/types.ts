@@ -114,6 +114,12 @@ export interface DataStore {
   // weekly default ---------------------------------------------------------
   /** The member's reusable week, or null when they haven't set one. */
   getWeeklyDefault(orgId: string, userId: string): Promise<WeeklyDefault | null>;
+  /**
+   * The same template for many people in one round trip, keyed by user id.
+   * Days a person has explicitly dated always win over this — use
+   * `applyWeeklyDefault` to merge the two.
+   */
+  listWeeklyDefaults(orgId: string, userIds: string[]): Promise<Record<string, WeeklyDefault>>;
   /** Replace (or, with null, clear) the template. Dated days are never touched. */
   setWeeklyDefault(orgId: string, userId: string, week: WeeklyDefault | null): Promise<void>;
 }

@@ -272,6 +272,65 @@ const OWNER = "11111111-1111-4111-8111-111111111111";
     check("the new link works", Boolean(await store.findJoinLink(rotated.token)));
   }
 
+  /* ---------------------------------------------------------------------- */
+  console.log("\nRound 6 — team slots, one day at a time");
+
+  {
+    /*
+     * The dashboard folds each person's usual week into the days they have not
+     * dated, then reads one day across all of them. These are the exact
+     * primitives TeamSlotGrid is built from.
+     */
+    const dates = ["2026-11-23", "2026-11-24", "2026-11-25"]; // Mon, Tue, Wed
+    const defaults = {
+      // Mon–Wed 9–11 free, as a reusable template.
+      u1: {
+        1: { 9: "free", 10: "free", 11: "free" },
+        2: { 9: "free", 10: "free", 11: "free" },
+        3: { 9: "free", 10: "free", 11: "free" },
+      },
+    };
+    const stored = {
+      // u2 dated Monday only, and marked the afternoon busy.
+      u2: { "2026-11-23": { 14: "busy", 15: "busy" } },
+    };
+
+    const folded = A.foldWeeklyDefaults(defaults, ["u1", "u2"], dates, stored);
+    check("template fills undated weekdays", folded.u1["2026-11-23"]?.[9] === "free");
+    check("dated rows survive the fold", folded.u2["2026-11-23"]?.[14] === "busy");
+    check("a user with no template, no row stays empty", Object.keys(folded.u2["2026-11-25"] ?? {}).length === 0);
+
+    // The grid's per-cell read: free / busy / unassigned.
+    check("cellState reads free", A.cellState(folded.u1["2026-11-25"], 10) === "free");
+    check("cellState reads busy", A.cellState(folded.u2["2026-11-23"], 14) === "busy");
+    check("a missing hour is unassigned", A.cellState(folded.u2["2026-11-23"], 3) === "unassigned");
+    check(
+      "dayStates tolerates a missing map",
+      Object.keys(A.dayStates(undefined, "2026-11-23")).length === 0,
+    );
+
+    const monday = ["u1", "u2"].filter((u) => A.cellState(folded[u]["2026-11-23"], 9) === "free").length;
+    check("two people free at 9a on Monday", monday === 1, `got ${monday}`);
+
+    // The store contract the dashboard now depends on.
+    const store = new MemoryStore();
+    const fresh = await store.listWeeklyDefaults(DEMO_ORG_ID, DEMO_USERS.map((u) => u.id));
+    check("listWeeklyDefaults returns an object", typeof fresh === "object" && fresh !== null);
+    check("no template yet means an empty map", Object.keys(fresh).length === 0);
+
+    await store.setWeeklyDefault(DEMO_ORG_ID, "33333333-3333-4333-8333-333333333333", {
+      1: { 9: "free", 10: "free" },
+    });
+    const after = await store.listWeeklyDefaults(DEMO_ORG_ID, [
+      "33333333-3333-4333-8333-333333333333",
+      "44444444-4444-4444-8444-444444444444",
+    ]);
+    check("one template comes back keyed by user", after["33333333-3333-4333-8333-333333333333"]?.[1]?.[9] === "free");
+    check("people without a template are omitted", !after["44444444-4444-4444-8444-444444444444"]);
+    const single = await store.getWeeklyDefault(DEMO_ORG_ID, "33333333-3333-4333-8333-333333333333");
+    check("getWeeklyDefault still agrees", single?.[1]?.[10] === "free");
+  }
+
   console.log(`\n=== ${pass} passed, ${fail} failed ===`);
   process.exit(fail ? 1 : 0);
 })().catch((error) => {

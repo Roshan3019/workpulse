@@ -27,7 +27,9 @@ export default async function TeamsPage() {
         </p>
       </div>
 
-      <div className="card">
+      {/* No padding on the card: the manager owns its own inset, so the
+          header, the rows and the dividers all share one edge. */}
+      <div className="card overflow-hidden">
         <TeamsManager teams={teams} members={members} />
       </div>
     </div>

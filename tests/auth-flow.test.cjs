@@ -289,9 +289,24 @@ function waitForReady(proc, timeoutMs = 90000) {
     /* ---------- 3. bad code must fail loudly, not silently ---------- */
     const jar2 = makeJar();
     jar2.set(VERIFIER_COOKIE, "base64-" + b64url(JSON.stringify(VERIFIER)));
-    r = await req(jar2, "/auth/callback?code=BAD-CODE&next=%2Fapp");
+    r = await req(jar2, "/auth/callback?code=BAD-CODE&next=%2Flogin");
     const badLoc = r.headers.get("location") || "";
     check("invalid code redirects to /login?error=", badLoc.includes("/login?error="), badLoc);
+
+    /*
+     * A failed exchange on the way to a join link must go back to the join link
+     * with the error, not to a bare sign-in page — that dead end is what made a
+     * shared join link look broken.
+     */
+    const jar2b = makeJar();
+    jar2b.set(VERIFIER_COOKIE, "base64-" + b64url(JSON.stringify(VERIFIER)));
+    r = await req(jar2b, "/auth/callback?code=BAD-CODE&next=%2Fjoin%2Fdemo-join-link-token");
+    const joinLoc = r.headers.get("location") || "";
+    check(
+      "invalid code on a join link returns to the join page with the error",
+      joinLoc.includes("/join/demo-join-link-token?error="),
+      joinLoc,
+    );
 
     /* ---------- 4. stray ?code= landing on / must be forwarded, not dropped ---------- */
     const jar3 = makeJar();

@@ -182,3 +182,33 @@ export function normaliseWeeklyDefault(input: unknown): WeeklyDefault {
   }
   return out;
 }
+
+/**
+ * Fold each person's usual week into the days they haven't dated.
+ *
+ * The member page settles for one person at a time; the dashboard needs the
+ * whole team flattened, and it needs the *same* precedence rule, so this
+ * reuses `applyWeeklyDefault` rather than re-implementing it.
+ */
+export function foldWeeklyDefaults(
+  defaults: Record<string, WeeklyDefault>,
+  userIds: string[],
+  dates: string[],
+  stored: Record<string, AvailabilityStates>,
+): Record<string, AvailabilityStates> {
+  const out: Record<string, AvailabilityStates> = {};
+  for (const userId of userIds) {
+    const explicit = stored[userId] ?? {};
+    const week = defaults[userId] ?? null;
+    out[userId] = week ? applyWeeklyDefault(week, dates, explicit).states : explicit;
+  }
+  return out;
+}
+
+/** One person's tri-state for a date, from a map that may be missing keys. */
+export function dayStates(
+  map: AvailabilityStates | undefined,
+  date: string,
+): Record<number, SlotState> {
+  return map?.[date] ?? {};
+}

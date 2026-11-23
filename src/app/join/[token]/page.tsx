@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Avatar, Logo } from "@/components/ui";
+import { Alert } from "@/components/ui/Modal";
+import { GoogleButton } from "@/components/auth/AuthForms";
 import { RequestToJoin } from "@/components/team/RequestToJoin";
 import { getStore } from "@/lib/data";
 import { getAuthContext } from "@/lib/session";
@@ -15,8 +17,14 @@ export const dynamic = "force-dynamic";
  * "you were chosen, come in". This link means "ask, and someone will decide".
  * The copy has to make that difference obvious before the person clicks.
  */
-export default async function JoinPage({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
+export default async function JoinPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const [{ token }, { error }] = await Promise.all([params, searchParams]);
   const [link, session] = await Promise.all([getStore().findJoinLink(token), getAuthContext()]);
 
   if (!link) {
@@ -63,6 +71,12 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
 
   return (
     <Shell>
+      {error ? (
+        <div className="mb-4">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      ) : null}
+
       <h1 className="text-[23px] font-extrabold tracking-[-0.02em] text-ink">
         Request to join {link.orgName}
       </h1>
@@ -111,16 +125,34 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
             {session ? (
               <RequestToJoin token={token} />
             ) : (
-              <Link
-                href={`/login?next=${encodeURIComponent(`/join/${token}`)}`}
-                className="btn-primary block w-full py-2.5 text-center"
-              >
-                Sign in to request
-              </Link>
+              /*
+               * Sign-in happens here rather than on /login: the visitor has
+               * already decided to join, so the only thing left is proving who
+               * they are. Both paths come straight back to this URL.
+               */
+              <div className="space-y-3">
+                <GoogleButton
+                  label="Continue with Google to join"
+                  next={`/join/${token}`}
+                />
+                <div className="flex items-center gap-3 text-[12px] font-semibold text-faint">
+                  <span className="h-px flex-1 bg-line" />
+                  or
+                  <span className="h-px flex-1 bg-line" />
+                </div>
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/join/${token}`)}`}
+                  className="btn-outline flex h-11 w-full items-center justify-center"
+                >
+                  Use email instead
+                </Link>
+              </div>
             )}
           </div>
-          <p className="mt-3 text-center text-[11.5px] text-faint">
-            No account yet? Signing in with Google creates one. You&apos;ll come straight back here.
+          <p className="mt-3 text-center text-[11.5px] leading-relaxed text-faint">
+            {session
+              ? "An admin approves the request, usually the same day."
+              : "No account yet? Signing in with Google creates one, and you land back here."}
           </p>
         </>
       )}

@@ -11,6 +11,12 @@ import type { Member, Team } from "@/lib/types";
 /**
  * Team management. A studio can run several teams; people can be on more than
  * one. Everything here is admin-only, enforced again on the server and in RLS.
+ *
+ * Geometry: the card around this component carries no padding of its own, so
+ * the header and every row share one 20px inset and the dividers run the full
+ * card width. That is what makes the sheet read as a single table — the
+ * previous version inset the header, inset the rows again and floated a
+ * divider between them, which is why nothing lined up.
  */
 export function TeamsManager({ teams, members }: { teams: Team[]; members: Member[] }) {
   const router = useRouter();
@@ -57,10 +63,10 @@ export function TeamsManager({ teams, members }: { teams: Team[]; members: Membe
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 px-5 pt-5 pb-4 sm:px-6 sm:pt-6">
+        <div className="min-w-0">
           <h2 className="text-[15px] font-extrabold text-ink">Teams</h2>
-          <p className="mt-0.5 text-[12.5px] text-muted">
+          <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
             Group people by what they do. Each task belongs to one team.
           </p>
         </div>
@@ -70,25 +76,28 @@ export function TeamsManager({ teams, members }: { teams: Team[]; members: Membe
       </div>
 
       {error && !open ? (
-        <div className="pt-4">
+        <div className="px-5 pb-4 sm:px-6">
           <Alert tone="error">{error}</Alert>
         </div>
       ) : null}
 
       {!teams.length ? (
-        <div className="py-10 text-center">
-          <p className="text-[13.5px] font-medium text-ink-2">No teams yet</p>
+        <div className="border-t border-line px-5 py-10 text-center sm:px-6">
+          <p className="text-[13.5px] font-semibold text-ink-2">No teams yet</p>
           <p className="mx-auto mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted">
             Create a team like “Web” or “Branding”, add the people in it, and the dashboard can be
             filtered to just that group.
           </p>
         </div>
       ) : (
-        <ul className="divide-y divide-line">
+        <ul className="border-t border-line">
           {teams.map((team) => {
             const people = team.memberIds.map((id) => byId.get(id)).filter(Boolean) as Member[];
             return (
-              <li key={team.id} className="flex flex-wrap items-center gap-3 py-3.5 first:pt-4">
+              <li
+                key={team.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-5 py-3.5 last:border-b-0 sm:px-6"
+              >
                 <div className="min-w-0 flex-1">
                   <Link
                     href={`/app?team=${team.slug}`}
@@ -96,7 +105,7 @@ export function TeamsManager({ teams, members }: { teams: Team[]; members: Membe
                   >
                     {team.name}
                   </Link>
-                  <div className="mt-1 flex items-center gap-2">
+                  <div className="mt-1.5 flex items-center gap-2">
                     {people.length ? (
                       <>
                         <span className="flex -space-x-1.5">
@@ -123,11 +132,11 @@ export function TeamsManager({ teams, members }: { teams: Team[]; members: Membe
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setEditing(team)}
-                    className="rounded-md px-2 py-1 text-[12px] font-medium text-muted transition-colors hover:bg-[#f4f5fa] hover:text-ink"
+                    className="rounded-md px-2 py-1 text-[12px] font-semibold text-muted transition-colors hover:bg-[#f1f3fa] hover:text-ink"
                   >
                     Edit
                   </button>
@@ -135,7 +144,7 @@ export function TeamsManager({ teams, members }: { teams: Team[]; members: Membe
                     type="button"
                     onClick={() => remove(team)}
                     disabled={pending && busyId === team.id}
-                    className="rounded-md px-2 py-1 text-[12px] font-medium text-muted transition-colors hover:bg-bad-soft hover:text-[#b91c1c] disabled:opacity-50"
+                    className="rounded-md px-2 py-1 text-[12px] font-semibold text-muted transition-colors hover:bg-bad-soft hover:text-[#b91c1c] disabled:opacity-50"
                   >
                     {pending && busyId === team.id ? "Deleting…" : "Delete"}
                   </button>

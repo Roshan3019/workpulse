@@ -392,6 +392,15 @@ export class MemoryStore implements DataStore {
     return db().weeklyDefaults[`${orgId}:${userId}`] ?? null;
   }
 
+  async listWeeklyDefaults(orgId: string, userIds: string[]): Promise<Record<string, WeeklyDefault>> {
+    const out: Record<string, WeeklyDefault> = {};
+    for (const userId of userIds) {
+      const week = db().weeklyDefaults[`${orgId}:${userId}`];
+      if (week && Object.keys(week).length) out[userId] = week;
+    }
+    return out;
+  }
+
   async setWeeklyDefault(orgId: string, userId: string, week: WeeklyDefault | null): Promise<void> {
     const membership = db().memberships.find((m) => m.orgId === orgId && m.userId === userId);
     if (!membership) throw new Error("Not a member of this organization");

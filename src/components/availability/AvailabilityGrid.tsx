@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert } from "@/components/ui/Modal";
 import { bulkSaveAvailabilityStatesAction } from "@/lib/actions/availability";
@@ -22,6 +22,9 @@ const DAY_START = 8; // 8am
 const DAY_END = 20; // exclusive → last slot is 7p
 
 const VISIBLE_HOURS = HOURS.filter((h) => h >= DAY_START && h < DAY_END);
+
+/** Width of the weekday/date gutter, shared by the ruler and every row. */
+const DAY_GUTTER = "56px";
 
 /** Group hours into 3 blocks so the grid reads as Morning / Afternoon / Evening. */
 const BLOCKS = [
@@ -296,39 +299,37 @@ export function AvailabilityGrid({
 
       {/* ---------------- the grid: 7 days, 12 hours ---------------- */}
       {/*
-        One fixed geometry for the header and every row: a 52px day gutter,
-        then twelve 44px hour cells. Because the header and the rows use the
-        same grid template, each label sits exactly over its own column, which
-        the previous block-based layout could not promise.
+        One grid template for the captions, the hour ruler and every row, so a
+        label can never drift off its column. The columns are `1fr`, not 44px:
+        the grid fills whatever width the card has (which is what the client
+        asked for on the admin page, where the old fixed 628px left half the
+        card blank) and only falls back to a horizontal scroll — via the
+        628px floor — on a phone.
       */}
       <div className="scroll-x -mx-1 px-1">
-        <div className="min-w-[628px]">
+        <div className="min-w-[628px]" style={{ display: "grid", gridTemplateColumns: `${DAY_GUTTER} repeat(${VISIBLE_HOURS.length}, minmax(0, 1fr))` }}>
           {/* group captions: each spans exactly the hours it names */}
-          <div className="mb-1 flex items-end pl-[60px]">
-            {BLOCKS.map((block) => (
-              <div
-                key={block.label}
-                className="text-center"
-                style={{ width: `${block.hours.length * 44 + (block.hours.length - 1) * 4}px` }}
-              >
-                <div className="text-[10.5px] font-extrabold tracking-[.06em] text-faint uppercase">
-                  {block.label}
-                </div>
-              </div>
-            ))}
-          </div>
+          <div />
+          {BLOCKS.map((block) => (
+            <div
+              key={block.label}
+              className="text-center text-[10.5px] font-extrabold tracking-[.06em] text-faint uppercase"
+              style={{ gridColumn: `span ${block.hours.length}` }}
+            >
+              {block.label}
+            </div>
+          ))}
 
           {/* hour labels, one per column */}
-          <div className="mb-1.5 flex items-end gap-1 border-b border-line pb-1.5 pl-[60px]">
-            {VISIBLE_HOURS.map((hour) => (
-              <div
-                key={hour}
-                className="w-11 shrink-0 text-center text-[10px] font-semibold tabular-nums text-faint"
-              >
-                {hourLabel(hour)}
-              </div>
-            ))}
-          </div>
+          <div />
+          {VISIBLE_HOURS.map((hour) => (
+            <div
+              key={hour}
+              className="border-b border-line pb-1.5 text-center text-[10px] font-semibold tabular-nums text-faint"
+            >
+              {hourLabel(hour)}
+            </div>
+          ))}
 
           {days.map((date) => {
             const counts = countStates(map[date] ?? {});
@@ -336,26 +337,28 @@ export function AvailabilityGrid({
             const count = counts.free;
             const busyCount = counts.busy;
             return (
-              <div key={date} className="flex items-center gap-1 py-1">
-                <div className="w-[52px] shrink-0 pr-1">
-                  <div
-                    className={`text-[10.5px] font-bold tracking-[.04em] uppercase ${
-                      isToday ? "text-brand" : "text-faint"
-                    }`}
-                  >
-                    {weekdayOf(date)}
-                  </div>
-                  <div
-                    className={`text-[14px] leading-tight font-bold tabular-nums ${
-                      isToday ? "text-brand" : "text-ink"
-                    }`}
-                  >
-                    {fromISODate(date).getDate()}
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] font-semibold">
-                    {count ? <span className="tabular-nums text-[#047857]">{count}h</span> : null}
-                    {busyCount ? <span className="tabular-nums text-[#b91c1c]">{busyCount}h</span> : null}
-                    {!count && !busyCount ? <span className="text-faint">—</span> : null}
+              <Fragment key={date}>
+                <div className="flex items-center pr-1">
+                  <div>
+                    <div
+                      className={`text-[10.5px] font-bold tracking-[.04em] uppercase ${
+                        isToday ? "text-brand" : "text-faint"
+                      }`}
+                    >
+                      {weekdayOf(date)}
+                    </div>
+                    <div
+                      className={`text-[14px] leading-tight font-bold tabular-nums ${
+                        isToday ? "text-brand" : "text-ink"
+                      }`}
+                    >
+                      {fromISODate(date).getDate()}
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] font-semibold">
+                      {count ? <span className="tabular-nums text-[#047857]">{count}h</span> : null}
+                      {busyCount ? <span className="tabular-nums text-[#b91c1c]">{busyCount}h</span> : null}
+                      {!count && !busyCount ? <span className="text-faint">—</span> : null}
+                    </div>
                   </div>
                 </div>
 
@@ -365,7 +368,7 @@ export function AvailabilityGrid({
                   return (
                     <div
                       key={hour}
-                      className="cell w-11 shrink-0"
+                      className="cell mx-[2px] my-1"
                       data-date={date}
                       data-hour={hour}
                       data-state={state}
@@ -389,7 +392,7 @@ export function AvailabilityGrid({
                     </div>
                   );
                 })}
-              </div>
+              </Fragment>
             );
           })}
         </div>

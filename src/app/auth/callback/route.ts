@@ -28,10 +28,22 @@ export async function GET(request: NextRequest) {
   // Safe redirect: only allow same-site relative paths.
   const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/app";
 
+  /*
+   * Where to send someone after a failed exchange. If they were on their way
+   * to a join/invite link, send them back there with the error attached so
+   * the retry happens in place instead of dumping them on a blank sign-in.
+   */
+  const backTo = (message: string) => {
+    const [path, query = ""] = next.split("?");
+    const params = new URLSearchParams(query);
+    params.set("error", message);
+    return `${origin}${path}?${params.toString()}`;
+  };
+
   if (errorCode || errorDescription) {
     const message =
       errorDescription ?? (errorCode === "access_denied" ? "Sign-in was cancelled." : errorCode ?? "Sign-in failed.");
-    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(message)}`);
+    return NextResponse.redirect(backTo(message));
   }
 
   if (env.demoMode || !env.hasSupabase) {
@@ -46,7 +58,7 @@ export async function GET(request: NextRequest) {
       type: type as "signup" | "email" | "recovery" | "invite" | "magiclink" | "email_change",
     });
     if (error) {
-      return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`);
+      return NextResponse.redirect(backTo(error.message));
     }
     return NextResponse.redirect(`${origin}${type === "recovery" ? "/login?mode=reset" : next}`);
   }
@@ -63,7 +75,7 @@ export async function GET(request: NextRequest) {
     // The usual cause is a missing/expired PKCE verifier cookie (started in a
     // different browser, or a stale tab). Send the user back with a message
     // instead of dropping them on a blank login screen.
-    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`);
+    return NextResponse.redirect(backTo(error.message));
   }
 
   return NextResponse.redirect(`${origin}${next}`);

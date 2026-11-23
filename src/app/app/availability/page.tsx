@@ -51,7 +51,7 @@ export default async function AvailabilityPage({
     // Stored days win; days with no row inherit that person's usual week.
     const { states: shown } = applyWeeklyDefault(
       weeklyDefault,
-      dates.slice(0, 7),
+      dates.slice(0, 14),
       stored[selectedId] ?? {},
     );
     const freeThisWeek = dates
@@ -60,22 +60,17 @@ export default async function AvailabilityPage({
 
     return (
       <div className="space-y-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <h1 className="h1">Who&apos;s free when</h1>
-            <p className="lede">Green means free, red means booked. Pick a person to see their week.</p>
+            <p className="lede">
+              Green is free, red is booked, grey isn&apos;t filled in. View only — everyone keeps
+              their own calendar up to date.
+            </p>
           </div>
           {freelancers.length > 1 ? (
             <MemberPicker members={freelancers} selected={selectedId} />
           ) : null}
-        </div>
-
-        <div className="flex items-start gap-2 rounded-xl border border-line bg-white px-3.5 py-2.5 text-[12.5px] leading-relaxed text-muted">
-          <span aria-hidden="true">👁</span>
-          <span>
-            <b className="text-ink-2">View only.</b> Teammates keep their own calendar up to date;
-            admins read it here.
-          </span>
         </div>
 
         {!selected ? (
@@ -108,7 +103,7 @@ export default async function AvailabilityPage({
             <AvailabilityGrid
               key={selectedId}
               mode="read"
-              dates={dates}
+              dates={dates.slice(0, 7)}
               today={today}
               initial={shown}
               emptyHint="this teammate edits their own calendar."

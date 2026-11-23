@@ -173,6 +173,27 @@ Why a second deploy: `NEXT_PUBLIC_*` values are compiled into the bundle. Saving
 without redeploying leaves the old value live. (Skip this and invite links will point at
 `localhost:8080`.)
 
+Set the same variable for **Preview** as well, with the production URL. Preview
+deployments still use the request's own host for OAuth (that is the only origin whose
+cookies survive the round trip), but email links built from the fallback should never
+point at `localhost`.
+
+### Deployment protection — check this before sharing a join link
+
+**Vercel → project → Settings → Deployment Protection.** If *Vercel Authentication* covers
+**All Deployments**, then every preview URL — including the branch alias
+`workpulse-git-<branch>-<team>.vercel.app` — is gated behind a Vercel login. A teammate who
+opens a join link on one of those URLs gets Vercel's sign-in page, not WorkPulse, which
+looks exactly like the app is broken.
+
+Two things follow:
+
+1. Share join links that point at **production** (or a custom domain). Custom domains are
+   never covered by the "all deployments" setting.
+2. If you *do* want to test a join link on a preview, set protection to
+   **Only Preview Deployments** *and* add the preview alias under **Protection Bypass for
+   Automation**, or test on production instead.
+
 ---
 
 ## Step 8 — First sign-in, first workspace
@@ -245,6 +266,25 @@ If #9 or #10 fails → did you run **`0006`** and **`0008`**? If #11 or #12 fail
 - [ ] `robots.txt` / social preview look right at your real domain
 
 Full security checklist: [`DEPLOYMENT.md`](./DEPLOYMENT.md) §3.
+
+---
+
+## The dashboard's team-slot view
+
+The dashboard answers one day at a time: the **Team slots** card sits directly under
+*Who's free this week* and shows one row per teammate, 8am–7pm across the top. It reads
+the day from `?day=YYYY-MM-DD` (the seven-day picker writes it), and the team filter comes
+from `?team=<slug>` — the same switcher the rest of the dashboard uses, so the card always
+shows that team's people.
+
+A day a teammate has not painted still shows their **usual week**: the dashboard folds
+`availability.default_states` into any date with no row of its own, in one batched query
+(`listWeeklyDefaults`). That is why the card can look full while a person's own page looks
+empty, or vice versa — the precedence is the same rule the member page uses.
+
+The hour rule never scrolls sideways. All twelve columns show from `lg`, eight from `sm`,
+six on a phone; row totals and the whole-day bar underneath always count all twelve, so the
+same day reads identically on a phone and a monitor.
 
 ---
 

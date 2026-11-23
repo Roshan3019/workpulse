@@ -181,6 +181,26 @@
 
 /* availability grid cells ------------------------------------------------- */
 /*
+ * `.slot` is the team-slot row cell (one person × one hour, read-only):
+ * green = free, light red = busy, grey = not filled in. Same three colours as
+ * the editable `.cell`, so the two screens teach one visual language.
+ */
+.slot {
+  height: 30px;
+  border-radius: 6px;
+  background: #eef1f8;
+  box-shadow: inset 0 0 0 1px #e5e8f2;
+}
+.slot[data-state="free"] {
+  background: var(--color-ok);
+  box-shadow: none;
+}
+.slot[data-state="busy"] {
+  background: color-mix(in oklab, var(--color-bad) 34%, white);
+  box-shadow: none;
+}
+
+/*
  * Three states, three looks, and the client's rule holds: green = free,
  * light red = busy, grey = unassigned. The grey is the page's own cool
  * grey rather than a warm tint, so a painted week reads as colour on paper.

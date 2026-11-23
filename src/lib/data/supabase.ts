@@ -515,17 +515,32 @@ export class SupabaseStore implements DataStore {
   /* --------------------------- weekly default --------------------------- */
 
   async getWeeklyDefault(orgId: string, userId: string): Promise<WeeklyDefault | null> {
+    const all = await this.listWeeklyDefaults(orgId, [userId]);
+    return all[userId] ?? null;
+  }
+
+  /**
+   * Every teammate's usual week in one query. The dashboard folds these into
+   * the dated rows so a day nobody has touched still reads as that person's
+   * normal hours instead of a wall of grey.
+   */
+  async listWeeklyDefaults(orgId: string, userIds: string[]): Promise<Record<string, WeeklyDefault>> {
+    const out: Record<string, WeeklyDefault> = {};
+    if (!userIds.length) return out;
     const sb = await this.sb();
     const { data, error } = await sb
       .from("availability")
-      .select("default_states")
+      .select("user_id, default_states")
       .eq("org_id", orgId)
-      .eq("user_id", userId)
-      .is("slot_date", null)
-      .maybeSingle();
-    if (error || !data) return null;
-    const week = normaliseWeeklyDefault((data as Row).default_states);
-    return Object.keys(week).length ? week : null;
+      .in("user_id", userIds)
+      .is("slot_date", null);
+    // A missing template is a normal state, not a failure to load the page.
+    if (error) return out;
+    for (const row of (data ?? []) as Row[]) {
+      const week = normaliseWeeklyDefault(row.default_states);
+      if (Object.keys(week).length) out[row.user_id] = week;
+    }
+    return out;
   }
 
   async setWeeklyDefault(orgId: string, userId: string, week: WeeklyDefault | null): Promise<void> {

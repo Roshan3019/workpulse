@@ -12,7 +12,7 @@ import { orgMembers } from "@/lib/data/request-cache";
 import { countdownLabel, dueDateOf, dueLabel, nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
-import { hoursFromStates } from "@/lib/availability";
+import { foldWeeklyDefaults, hoursFromStates } from "@/lib/availability";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ const STATUS_TONE = {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ team?: string }>;
+  searchParams: Promise<{ team?: string; day?: string }>;
 }) {
   const session = await requireSession();
   if (!isAdminRole(session.membership.role)) redirect("/app/my-tasks");
@@ -58,11 +58,20 @@ export default async function DashboardPage({
   const doneCount = tasks.filter((t) => t.status === "done").length;
 
   const dates = nextDatesIn(7, tz);
-  const availability = await store.getAvailabilityStates(
-    orgId,
-    freelancers.map((m) => m.userId),
-    dates,
-  );
+  const memberIds = freelancers.map((m) => m.userId);
+  const [storedAvailability, weeklyDefaults] = await Promise.all([
+    store.getAvailabilityStates(orgId, memberIds, dates),
+    store.listWeeklyDefaults(orgId, memberIds),
+  ]);
+  /*
+   * A day nobody has painted still means "my usual Tuesday". Folding the
+   * templates in here is what stops the team view from reading as a grey
+   * wall while the members' own calendars look full.
+   */
+  const availability = foldWeeklyDefaults(weeklyDefaults, memberIds, dates, storedAvailability);
+
+  /* The team-slot view shows one day; ?day= picks it, anything off-list is today. */
+  const selectedDay = params.day && dates.includes(params.day) ? params.day : dates[0];
 
   // Legacy hour map for the widgets that still think in "free hours".
   const freeHours: Record<string, Record<string, number[]>> = Object.fromEntries(
@@ -185,13 +194,18 @@ export default async function DashboardPage({
 
       <OverallSlots members={freelancers} availability={freeHours} dates={dates} />
 
-      {/* The client's ask: the whole team's week on one screen, folded together. */}
-      <TeamSlotGrid
-        members={freelancers}
-        availability={availability}
-        dates={dates}
-        title={selectedTeam ? `${selectedTeam.name} slots` : "Team slots"}
-      />
+      {/* The client's ask: one day, every teammate, hour by hour. */}
+      <div id="team-slots" className="scroll-mt-24">
+        <TeamSlotGrid
+          members={freelancers}
+          availability={availability}
+          date={selectedDay}
+          dates={dates}
+          today={dates[0]}
+          current={selectedTeam?.slug ?? null}
+          title={selectedTeam ? `${selectedTeam.name} slots` : "Team slots"}
+        />
+      </div>
 
       <Section
         title="Next deadlines"
