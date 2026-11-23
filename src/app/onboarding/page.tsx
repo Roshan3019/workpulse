@@ -88,7 +88,7 @@ export default async function OnboardingPage() {
                 <label htmlFor="name">Team or studio name</label>
                 <input id="name" name="name" required placeholder="Northstar Studio" autoFocus />
               </div>
-              <button type="submit" className="btn-primary w-full py-3">
+              <button type="submit" className="btn-primary h-11 w-full">
                 Create workspace
               </button>
             </form>

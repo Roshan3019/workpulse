@@ -63,7 +63,7 @@ export function OverallSlots({
             <table className="w-full min-w-[640px] border-separate border-spacing-0">
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-10 bg-white px-0 py-2 text-left text-[10.5px] font-medium tracking-[.06em] text-faint uppercase">
+                  <th className="sticky left-0 z-10 bg-white px-0 py-2 text-left text-[10.5px] font-extrabold tracking-[.07em] text-faint uppercase">
                     Teammate
                   </th>
                   {week.map((date) => {
@@ -71,7 +71,7 @@ export function OverallSlots({
                     return (
                       <th
                         key={date}
-                        className={`px-1 py-2 text-center text-[10.5px] font-medium tracking-[.06em] uppercase ${
+                        className={`px-1 py-2 text-center text-[10.5px] font-extrabold tracking-[.07em] uppercase ${
                           isToday ? "text-brand" : "text-faint"
                         }`}
                       >
@@ -82,7 +82,7 @@ export function OverallSlots({
                       </th>
                     );
                   })}
-                  <th className="px-2 py-2 text-right text-[10.5px] font-medium tracking-[.06em] text-faint uppercase">
+                  <th className="px-2 py-2 text-right text-[10.5px] font-extrabold tracking-[.07em] text-faint uppercase">
                     Week
                   </th>
                 </tr>
@@ -90,7 +90,7 @@ export function OverallSlots({
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.member.id}>
-                    <td className="sticky left-0 z-10 border-t border-[#f0f1f7] bg-white py-2.5 pr-2">
+                    <td className="sticky left-0 z-10 border-t border-[#f0f1f7] bg-white py-2.5 pr-3">
                       <div className="flex items-center gap-2">
                         <Avatar
                           id={row.member.userId}
@@ -110,7 +110,7 @@ export function OverallSlots({
                     {row.perDay.map((hours, i) => (
                       <td key={week[i]} className="border-t border-[#f0f1f7] px-1 py-2.5 text-center">
                         {hours > 0 ? (
-                          <span className="inline-block min-w-[38px] rounded-md bg-ok-soft px-1.5 py-1 text-[11.5px] font-medium tabular-nums text-[#2f6b4a]">
+                          <span className="inline-block min-w-[38px] rounded-md bg-ok-soft px-1.5 py-1 text-[11.5px] font-extrabold tabular-nums text-[#065f46]">
                             {hours}h
                           </span>
                         ) : (
@@ -120,7 +120,7 @@ export function OverallSlots({
                         )}
                       </td>
                     ))}
-                    <td className="border-t border-[#f0f1f7] px-2 py-2.5 text-right text-[12.5px] font-medium tabular-nums">
+                    <td className="border-t border-[#f0f1f7] px-2 py-2.5 text-right text-[13px] font-extrabold tabular-nums">
                       {row.total}h
                     </td>
                   </tr>

@@ -60,7 +60,7 @@ export function RequestToJoin({ token }: { token: string }) {
 
       {error ? <Alert tone="error">{error}</Alert> : null}
 
-      <button type="submit" disabled={pending} className="btn-primary w-full py-2.5">
+      <button type="submit" disabled={pending} className="btn-primary h-11 w-full">
         {pending ? "Sending…" : "Send request"}
       </button>
     </form>

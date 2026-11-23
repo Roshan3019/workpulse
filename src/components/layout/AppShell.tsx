@@ -168,14 +168,16 @@ export function AppShell({
             onClick={() => setOpen((v) => !v)}
             aria-label="Toggle menu"
             aria-expanded={open}
-            className="grid h-10 w-10 place-items-center rounded-xl border border-line-2 bg-white text-ink-2"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line-2 bg-white text-ink-2"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 6h18M3 12h18M3 18h18" />
             </svg>
           </button>
-          <Logo subtitle={admin ? "Admin console" : "Freelancer view"} href="/app" />
-          <div className="ml-auto flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <Logo subtitle={admin ? "Admin console" : "Freelancer view"} href="/app" />
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <Avatar
               id={session.user.id}
               name={session.user.fullName}

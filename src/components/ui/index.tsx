@@ -29,12 +29,14 @@ export function LogoMark({ size = 40 }: { size?: number }) {
 
 export function Logo({ subtitle, href = "/" }: { subtitle?: string; href?: string }) {
   return (
-    <Link href={href} className="flex items-center gap-2.5">
+    <Link href={href} className="flex min-w-0 items-center gap-2.5">
       <LogoMark />
-      <span className="leading-tight">
-        <span className="block text-[19px] font-extrabold tracking-[-0.02em]">WorkPulse</span>
+      <span className="min-w-0 leading-tight">
+        <span className="block truncate text-[19px] font-extrabold tracking-[-0.02em]">WorkPulse</span>
         {subtitle ? (
-          <span className="block text-[10px] font-bold tracking-[.14em] text-faint uppercase">{subtitle}</span>
+          <span className="block truncate text-[10px] font-bold tracking-[.14em] text-faint uppercase">
+            {subtitle}
+          </span>
         ) : null}
       </span>
     </Link>

@@ -60,7 +60,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Signu
                 Demo mode: real sign-up needs a Supabase project. Jump straight into the product instead.
               </div>
               <form action={demoSignIn.bind(null, "11111111-1111-4111-8111-111111111111")}>
-                <button type="submit" className="btn-primary w-full py-3">
+                <button type="submit" className="btn-primary h-11 w-full">
                   Enter the demo as Owner
                 </button>
               </form>

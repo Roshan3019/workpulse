@@ -27,10 +27,10 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
           to send a fresh link.
         </p>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-          <Link href="/login" className="btn-primary flex-1 py-3 text-center">
+          <Link href="/login" className="btn-primary h-11 flex-1">
             Go to sign in
           </Link>
-          <Link href="/" className="btn-outline flex-1 py-3 text-center">
+          <Link href="/" className="btn-outline h-11 flex-1">
             Back to site
           </Link>
         </div>
@@ -65,11 +65,11 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
         <div className="mt-6 space-y-2.5">
           <Link
             href={`/signup?next=${next}${invite.email ? `&email=${encodeURIComponent(invite.email)}` : ""}`}
-            className="btn-primary block w-full py-3 text-center"
+            className="btn-primary h-11 w-full"
           >
             Create an account
           </Link>
-          <Link href={`/login?next=${next}`} className="btn-outline block w-full py-3 text-center">
+          <Link href={`/login?next=${next}`} className="btn-outline h-11 w-full">
             I already have an account
           </Link>
         </div>
@@ -103,7 +103,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
             need it sent to a different address.
           </Alert>
         </div>
-        <Link href="/login" className="btn-primary mt-4 block w-full py-3 text-center">
+        <Link href="/login" className="btn-primary mt-4 h-11 w-full">
           Switch account
         </Link>
       </InviteShell>
@@ -147,7 +147,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
         }}
         className="mt-6"
       >
-        <button type="submit" className="btn-primary w-full py-3">
+        <button type="submit" className="btn-primary h-11 w-full">
           Accept invite
         </button>
       </form>

@@ -83,12 +83,12 @@ export function JoinRequestInbox({ requests }: { requests: JoinRequest[] }) {
               ) : null}
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:w-auto sm:items-center">
               <button
                 type="button"
                 onClick={() => decide(request.id, false)}
                 disabled={pending && busyId === request.id}
-                className="rounded-md px-2.5 py-1.5 text-[12px] font-medium text-muted transition-colors hover:bg-[#f4f5fa] hover:text-ink disabled:opacity-50"
+                className="h-8 rounded-full px-3 text-[12.5px] font-semibold text-muted transition-colors hover:bg-[#f4f5fa] hover:text-ink disabled:opacity-50"
               >
                 Decline
               </button>
@@ -96,7 +96,7 @@ export function JoinRequestInbox({ requests }: { requests: JoinRequest[] }) {
                 type="button"
                 onClick={() => decide(request.id, true)}
                 disabled={pending && busyId === request.id}
-                className="btn-primary btn-sm"
+                className="btn-primary btn-sm justify-center"
               >
                 {pending && busyId === request.id ? "Working…" : "Approve"}
               </button>
