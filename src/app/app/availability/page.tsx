@@ -126,36 +126,36 @@ export default async function AvailabilityPage({
                         {week.map((date) => {
                           const day = days[date] ?? {};
                           const c = countStates(day);
-                          // A day reads at a glance: mostly free / mostly busy / nothing said.
-                          const tone =
-                            c.free === 0 && c.busy === 0
-                              ? "empty"
-                              : c.free >= c.busy
-                                ? "free"
-                                : "busy";
+                          const total = c.free + c.busy;
+                          const freePct = total ? Math.round((c.free / total) * 100) : 0;
                           return (
                             <span
                               key={date}
                               title={`${weekdayOf(date)}: ${c.free}h free, ${c.busy}h busy, ${c.unassigned}h unassigned`}
-                              className={`relative flex h-8 w-[34px] items-end justify-center overflow-hidden rounded-md border text-[9.5px] font-medium tabular-nums ${
-                                tone === "empty"
-                                  ? "border-dashed border-line-2 bg-[#fbfaf8] text-faint"
-                                  : tone === "free"
-                                    ? "border-[#cfe6d8] bg-ok-soft/70 text-[#047857]"
-                                    : "border-[#efd5d0] bg-bad-soft/70 text-[#b91c1c]"
+                              className={`relative flex h-8 w-[34px] flex-col justify-end overflow-hidden rounded-[5px] border ${
+                                total === 0 ? "border-dashed border-line-2 bg-[#fbfaf8]" : "border-line"
                               }`}
                             >
-                              {/* the filled bar = share of the day that is free */}
-                              {tone !== "empty" ? (
-                                <i
-                                  className={`absolute inset-x-0 bottom-0 ${tone === "free" ? "bg-ok/35" : "bg-bad/30"}`}
-                                  style={{ height: `${Math.round((c.free / Math.max(c.free + c.busy, 1)) * 100)}%` }}
-                                  aria-hidden="true"
-                                />
+                              {total === 0 ? (
+                                <span className="pb-1 text-center text-[10px] text-faint">–</span>
                               ) : (
-                                <span className="pb-1.5">—</span>
+                                <>
+                                  {/* One bar, two honest segments: the share of the day spoken for. */}
+                                  <i
+                                    className="absolute inset-x-0 top-0 bg-bad/35"
+                                    style={{ height: `${100 - freePct}%` }}
+                                    aria-hidden="true"
+                                  />
+                                  <i
+                                    className="absolute inset-x-0 bottom-0 bg-ok/55"
+                                    style={{ height: `${freePct}%` }}
+                                    aria-hidden="true"
+                                  />
+                                  <span className="relative pb-1 text-center text-[10px] font-medium tabular-nums text-ink-2">
+                                    {c.free}
+                                  </span>
+                                </>
                               )}
-                              <span className="relative pb-1.5">{tone === "empty" ? "" : c.free}</span>
                             </span>
                           );
                         })}
