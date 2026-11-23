@@ -213,8 +213,13 @@ Run these in a **private window** so you're signed out:
 | 6 | Drag the task progress bar on **My tasks** | thumb moves, % updates, "Saved ✓" |
 | 7 | Availability page | today's date is **your** date, one column per day |
 | 8 | Resize to phone width | no horizontal scroll |
+| 9 | **Availability** as a freelancer → paint an hour **busy**, save | it stays light red after refresh; the admin roster shows it red too |
+| 10 | Freelancer → **My usual week** → set Mon–Fri, save → look at next week | next week is already filled in, without touching it |
+| 11 | Admin → **Settings → Join link → Copy**, open in a private window as a **new** account | the page says you're *requesting* to join, not joining |
+| 12 | Send that request, then approve it in the admin **dashboard** | the requester becomes a member; the inbox clears |
 
 If #2 fails → Step 6. If #3 fails → Step 1 (did you run `0003`?). If #4 errors → `0003` again.
+If #9 or #10 fails → did you run **`0006`** and **`0008`**? If #11 or #12 fails → **`0007`**.
 
 ---
 
@@ -240,6 +245,29 @@ If #2 fails → Step 6. If #3 fails → Step 1 (did you run `0003`?). If #4 erro
 - [ ] `robots.txt` / social preview look right at your real domain
 
 Full security checklist: [`DEPLOYMENT.md`](./DEPLOYMENT.md) §3.
+
+---
+
+## Migration order
+
+Apply the files in `supabase/migrations/` **in numeric order**. Each one is
+idempotent, so a re-run is safe, but skipping one will make the feature it
+backs look broken rather than erroring:
+
+| File | Enables | If it's missing |
+|---|---|---|
+| `0001_init.sql` | the schema itself | nothing works |
+| `0002_fix_invite_token.sql` | invite tokens | invites 404 |
+| `0003_invite_preview_and_email.sql` | invite pages for signed-out visitors, optional email delivery | invite link shows "no longer valid" |
+| `0004_performance.sql` | indexes + RLS rewrites | slow, not broken |
+| `0005_teams.sql` | teams, `tasks.team_id` | **Teams** page errors; the dashboard switcher is absent |
+| `0006_availability_states.sql` | free / busy / unassigned | the availability grid saves nothing |
+| `0007_join_link_and_requests.sql` | the common join link + approval inbox | **Settings → Join link** errors |
+| `0008_availability_default.sql` | the weekly default | **My usual week** errors |
+
+The `hours` column on `availability` is still present on purpose: `0006` keeps
+it in sync from `states` so older read paths stay correct. It can be dropped
+once nothing reads it.
 
 ---
 
