@@ -349,6 +349,7 @@ the `vercel.json` change did not reach the deployment. Redeploy and check again.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Landing page shows "Demo mode is on" | `NEXT_PUBLIC_DEMO_MODE` missing or `1` | set `0` → **redeploy** |
+| Signed in but every list is empty, with no error | `NEXT_PUBLIC_SUPABASE_URL` / `ANON_KEY` wrong | they are read at **build** time, so fix them and redeploy |
 | Google sign-in returns to `/login` | Site URL wrong in Supabase | Step 6 |
 | `invite_preview does not exist` | `0003` not run | Step 1.5 |
 | `gen_random_bytes(integer) does not exist` | old project, `0002` not run | run `0002` |
