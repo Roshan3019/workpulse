@@ -214,7 +214,7 @@ export function AvailabilityGrid({
             {([
               { value: "free", label: "Free", dot: "bg-ok", on: "bg-ok-soft text-ok-dark ring-1 ring-ok/40", ring: "ring-ok/40" },
               { value: "busy", label: "Busy", dot: "bg-bad/70", on: "bg-bad-soft text-[#991b1b] ring-1 ring-bad/30", ring: "ring-bad/30" },
-              { value: "unassigned", label: "Unassigned", dot: "bg-line-2", on: "bg-[#f1f3f9] text-ink-2 ring-1 ring-line-2", ring: "ring-line-2" },
+              { value: "unassigned", label: "Unassigned", dot: "bg-line-2", on: "bg-[#f2efea] text-ink-2 ring-1 ring-line-2", ring: "ring-line-2" },
             ] as const).map((option) => {
               const active = brush === option.value;
               return (
@@ -225,7 +225,7 @@ export function AvailabilityGrid({
                   aria-pressed={active}
                   title={`Paint ${option.label.toLowerCase()}`}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors duration-150 ${
-                    active ? option.on : "text-muted hover:bg-[#f7f8fc] hover:text-ink-2"
+                    active ? option.on : "text-muted hover:bg-[#f8f6f3] hover:text-ink-2"
                   }`}
                 >
                   <i className={`h-2.5 w-2.5 rounded-[3px] ${option.dot}`} aria-hidden="true" />
@@ -290,7 +290,7 @@ export function AvailabilityGrid({
 
       {isEmptyWeek && editable ? (
         <div className="mb-3 rounded-xl border border-brand-line bg-brand-soft px-3.5 py-2.5 text-[12.5px] leading-relaxed font-semibold text-brand-dark">
-          Nothing set yet. Pick <b>Free</b>, <b>Busy</b> or <b>Unassigned</b> above, then drag across the hours.
+          Pick <b>Free</b>, <b>Busy</b> or <b>Unassigned</b> above, then drag across the hours.
         </div>
       ) : null}
 
@@ -305,7 +305,7 @@ export function AvailabilityGrid({
             <div />
             {BLOCKS.map((block) => (
               <div key={block.label} className="text-center">
-                <div className="text-[11px] font-extrabold tracking-[.06em] text-ink-2 uppercase">{block.label}</div>
+                <div className="text-[10.5px] font-medium tracking-[.06em] text-faint uppercase">{block.label}</div>
                 <div className="text-[10px] font-semibold text-faint">{block.hint}</div>
               </div>
             ))}
@@ -319,14 +319,14 @@ export function AvailabilityGrid({
             return (
               <div
                 key={date}
-                className="grid items-center gap-1 border-t border-[#f0f1f7] py-1.5 first:border-t-0"
+                className="grid items-center gap-1 border-t border-[#efece6] py-1.5 first:border-t-0"
                 style={{ gridTemplateColumns: `58px repeat(${BLOCKS.length}, minmax(0, 1fr))` }}
               >
                 <div className="pr-1">
-                  <div className={`text-[11px] font-extrabold tracking-wide uppercase ${isToday ? "text-brand" : "text-ink-2"}`}>
+                  <div className={`text-[10.5px] font-medium tracking-[.04em] uppercase ${isToday ? "text-brand" : "text-faint"}`}>
                     {weekdayOf(date)}
                   </div>
-                  <div className={`text-[15px] leading-tight font-extrabold ${isToday ? "text-brand" : "text-ink"}`}>
+                  <div className={`text-[14px] leading-tight font-semibold tabular-nums ${isToday ? "text-brand" : "text-ink"}`}>
                     {fromISODate(date).getDate()}
                   </div>
                   <div className="flex items-center gap-1 text-[10px] font-medium">
@@ -388,7 +388,7 @@ export function AvailabilityGrid({
             <div
               key={date}
               className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-[12.5px] ${
-                touched ? "border-line bg-white" : "border-dashed border-line-2 bg-[#fbfbfe]"
+                touched ? "border-line bg-white" : "border-dashed border-line-2 bg-[#fbfaf8]"
               }`}
             >
               <span className="font-medium text-ink-2">

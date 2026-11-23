@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "WorkPulse — Know who's free, who's slammed, who's shipping",
+    default: "WorkPulse: know who's free, who's slammed, who's shipping",
     template: "%s · WorkPulse",
   },
   description:
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   applicationName: "WorkPulse",
   robots: { index: true, follow: true },
   openGraph: {
-    title: "WorkPulse — Team availability, decoded",
+    title: "WorkPulse: team availability, decoded",
     description: "Live workload, free hours and client tasks for freelancer teams.",
     type: "website",
   },
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#4f46e5",
+  themeColor: "#faf9f6",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

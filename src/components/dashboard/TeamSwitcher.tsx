@@ -20,7 +20,7 @@ export function TeamSwitcher({ teams, active }: { teams: Team[]; active: string 
       aria-current={isActive ? "page" : undefined}
       className={`relative inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150 ${
         isActive
-          ? "bg-white text-ink shadow-[0_1px_2px_rgba(16,24,40,.06)] ring-1 ring-line"
+          ? "bg-white text-ink  ring-1 ring-line"
           : "text-muted hover:text-ink"
       }`}
     >
@@ -34,7 +34,7 @@ export function TeamSwitcher({ teams, active }: { teams: Team[]; active: string 
   );
 
   return (
-    <div className="inline-flex flex-wrap items-center gap-0.5 rounded-xl border border-line bg-[#f7f8fc] p-1">
+    <div className="inline-flex flex-wrap items-center gap-0.5 rounded-xl border border-line bg-[#f8f6f3] p-1">
       {tab(pathname, "Overall", active === null)}
       {teams.map((team) =>
         tab(`${pathname}?team=${team.slug}`, team.name, active === team.slug, team.memberIds.length),

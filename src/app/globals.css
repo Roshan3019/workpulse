@@ -6,30 +6,35 @@
 @theme {
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
-  --color-brand: #4f46e5;
-  --color-brand-dark: #4338ca;
-  --color-brand-soft: #eef0fe;
-  --color-brand-line: #d3d8fb;
+  /*
+   * Editorial and calm, as agreed: near-black text, warm neutral greys, one
+   * restrained accent (a deep terracotta — not the default indigo every
+   * generated app lands on), borders instead of shadow.
+   */
+  --color-brand: #b4552d;
+  --color-brand-dark: #96431f;
+  --color-brand-soft: #fbf1eb;
+  --color-brand-line: #f0dcd1;
 
-  --color-ink: #111827;
-  --color-ink-2: #374151;
-  --color-muted: #6b7280;
-  --color-faint: #9ca3af;
+  --color-ink: #171614;
+  --color-ink-2: #3d3a35;
+  --color-muted: #726d64;
+  --color-faint: #a09a90;
 
-  --color-line: #e8eaf2;
-  --color-line-2: #dde1ee;
-  --color-canvas: #f6f7fb;
+  --color-line: #e7e3dc;
+  --color-line-2: #dcd6cc;
+  --color-canvas: #faf9f6;
 
-  --color-ok: #10b981;
-  --color-ok-dark: #059669;
-  --color-ok-soft: #e7f8f0;
-  --color-warn: #f59e0b;
-  --color-warn-dark: #b45309;
-  --color-warn-soft: #fef4e2;
-  --color-bad: #ef4444;
-  --color-bad-soft: #fdecec;
+  --color-ok: #3f8f63;
+  --color-ok-dark: #347a54;
+  --color-ok-soft: #edf6f0;
+  --color-warn: #c98a2b;
+  --color-warn-dark: #9c6a1d;
+  --color-warn-soft: #fdf6e9;
+  --color-bad: #c2544a;
+  --color-bad-soft: #fbeeec;
 
-  --radius-xl2: 20px;
+  --radius-xl2: 12px;
 }
 
 @layer base {
@@ -40,14 +45,12 @@
     font-family: var(--font-sans);
     color: var(--color-ink);
     background-color: var(--color-canvas);
-    background-image:
-      linear-gradient(var(--color-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
-    background-size: 32px 32px;
     min-height: 100vh;
+    /* Optical polish: slightly tighter tracking reads as typeset, not typed. */
+    letter-spacing: -0.006em;
   }
   ::selection {
-    background: #d3d8fb;
+    background: #f3ddd2;
   }
   /* Consistent focus ring for keyboard users */
   :where(button, a, input, select, textarea):focus-visible {
@@ -58,7 +61,7 @@
 
 @layer components {
   .card {
-    @apply rounded-[20px] border border-line bg-white shadow-[0_1px_3px_rgba(16,24,40,.05),0_1px_2px_rgba(16,24,40,.04)];
+    @apply rounded-[12px] border border-line bg-white;
   }
 
   /* buttons: shared base, then variants. (Tailwind v4 can't @apply custom
@@ -67,19 +70,20 @@
   .btn-primary,
   .btn-outline,
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-55;
+    /* 150ms ease-out: fast enough to feel instant, slow enough to read as motion. */
+    @apply inline-flex items-center justify-center gap-2 rounded-[8px] px-4 py-2.5 text-[13.5px] font-medium transition-[background-color,border-color,color,opacity] duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply bg-brand text-white shadow-[0_4px_14px_rgba(79,70,229,.28)] hover:bg-brand-dark;
+    @apply bg-brand text-white hover:bg-brand-dark;
   }
   .btn-outline {
-    @apply border border-line-2 bg-white text-ink-2 hover:border-[#c7ccdf] hover:bg-[#fafaff];
+    @apply border border-line-2 bg-white text-ink-2 hover:border-[#c9c2b6] hover:bg-[#fbfaf8];
   }
   .btn-ghost {
-    @apply text-ink-2 hover:bg-[#f1f3fa];
+    @apply text-ink-2 hover:bg-[#f2efea];
   }
   .btn-sm {
-    @apply px-3.5 py-2 text-[13px];
+    @apply px-3 py-1.5 text-[12.5px];
   }
 
   .pill,
@@ -88,7 +92,9 @@
   .pill-amber,
   .pill-red,
   .pill-grey {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-transparent px-2.5 py-1 text-[11px] font-bold tracking-[.06em] uppercase;
+    /* Sentence case, medium weight. Caps-lock labels on every block is the
+       single loudest generated-app tell; the client noticed it too. */
+    @apply inline-flex items-center gap-1.5 rounded-md border border-transparent px-2 py-0.5 text-[11.5px] font-medium;
   }
   .pill-green {
     @apply border-[#bfe9d6] bg-ok-soft text-ok-dark;
@@ -103,31 +109,31 @@
     @apply border-[#f3c2c2] bg-bad-soft text-[#b91c1c];
   }
   .pill-grey {
-    @apply border-line bg-[#f1f3f9] text-muted;
+    @apply border-line bg-[#f2efea] text-muted;
   }
 
   .field label {
-    @apply mb-1.5 block text-[11px] font-extrabold tracking-[.07em] text-muted uppercase;
+    @apply mb-1.5 block text-[12.5px] font-medium text-ink-2;
   }
   .field input,
   .field select,
   .field textarea {
-    @apply w-full rounded-xl border border-line-2 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-brand;
+    @apply w-full rounded-[8px] border border-line-2 bg-white px-3 py-2.5 text-[13.5px] outline-none transition-colors duration-150 focus:border-brand focus:ring-2 focus:ring-brand/10;
   }
   .label {
-    @apply text-[11px] font-extrabold tracking-[.07em] text-muted uppercase;
+    @apply text-[12px] font-medium text-muted;
   }
   .h1 {
-    @apply text-[26px] leading-tight font-extrabold tracking-[-0.02em] sm:text-[32px];
+    @apply text-[24px] leading-[1.15] font-semibold tracking-[-0.021em] sm:text-[28px];
   }
   .h2 {
-    @apply text-lg font-extrabold tracking-[-0.01em];
+    @apply text-[16px] font-semibold tracking-[-0.011em];
   }
   .lede {
-    @apply mt-1.5 text-[14.5px] text-muted;
+    @apply mt-1.5 max-w-[62ch] text-[13.5px] leading-relaxed text-muted;
   }
   .track {
-    @apply h-2.5 overflow-hidden rounded-full bg-[#eef0f7];
+    @apply h-1.5 overflow-hidden rounded-full bg-[#eeeae3];
   }
   .scroll-x {
     overflow-x: auto;
@@ -150,10 +156,10 @@
     box-shadow 0.15s ease;
 }
 .cell[data-state="unassigned"] {
-  box-shadow: inset 0 0 0 1px #e7e9f2;
+  box-shadow: inset 0 0 0 1px #e6e1d9;
 }
 .cell[data-state="unassigned"]:hover {
-  background: #ebeef7;
+  background: #eae5dd;
 }
 .cell[data-state="free"] {
   background: var(--color-ok);
@@ -248,7 +254,7 @@
   border-radius: 50%;
   background: #fff;
   border: 3px solid var(--color-brand);
-  box-shadow: 0 1px 4px rgba(17, 24, 39, 0.22);
+  box-shadow: 0 1px 4px rgba(23, 22, 20, 0.20);
   transition:
     transform 0.12s ease,
     box-shadow 0.12s ease;
@@ -259,19 +265,19 @@
   border-radius: 50%;
   background: #fff;
   border: 3px solid var(--color-brand);
-  box-shadow: 0 1px 4px rgba(17, 24, 39, 0.22);
+  box-shadow: 0 1px 4px rgba(23, 22, 20, 0.20);
 }
 
 /* grow on hover / while dragging — makes it feel grabbable */
 .range:hover::-webkit-slider-thumb,
 .range:active::-webkit-slider-thumb {
   transform: scale(1.12);
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 2px 8px rgba(180, 85, 45, 0.30);
 }
 .range:focus-visible::-webkit-slider-thumb {
   box-shadow:
-    0 0 0 4px rgba(79, 70, 229, 0.22),
-    0 1px 4px rgba(17, 24, 39, 0.22);
+    0 0 0 4px rgba(180, 85, 45, 0.20),
+    0 1px 4px rgba(23, 22, 20, 0.20);
 }
 @media (max-width: 640px) {
   .range::-webkit-slider-thumb {

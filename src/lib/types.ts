@@ -77,6 +77,43 @@ export interface Invite {
 }
 
 /* --------------------------------------------------------------------------
+   Join requests
+
+   Two ways into a studio, chosen by the admin:
+     • a targeted email invite — joins immediately when they accept;
+     • a common join link — anyone with it can *ask* to join, and an admin
+       approves or declines from an inbox in the dashboard.
+   Nothing is inserted into `memberships` until approval.
+   -------------------------------------------------------------------------- */
+export type JoinRequestStatus = "pending" | "approved" | "declined";
+
+/**
+ * A reusable week: weekday (0=Sun … 6=Sat) -> hour -> state. Applied at read
+ * time to any day that has no row of its own, so future weeks fill themselves
+ * in; an explicit day always wins.
+ */
+export type WeeklyDefault = Record<number, Record<number, SlotState>>;
+
+export interface JoinLink {
+  orgId: string;
+  token: string;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface JoinRequest {
+  id: string;
+  orgId: string;
+  userId: string;
+  /** Who asked — resolved for the inbox, so the admin knows who they're letting in. */
+  profile: Profile;
+  note: string | null;
+  status: JoinRequestStatus;
+  createdAt: string;
+  decidedAt: string | null;
+}
+
+/* --------------------------------------------------------------------------
    Availability
    --------------------------------------------------------------------------
    Three states, as agreed with the client:

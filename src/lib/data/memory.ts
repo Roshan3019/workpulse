@@ -4,6 +4,8 @@ import type {
   AvailabilityMap,
   AvailabilityStates,
   Invite,
+  JoinLink,
+  JoinRequest,
   Member,
   Membership,
   OrgRole,
@@ -13,8 +15,9 @@ import type {
   SlotState,
   Task,
   Team,
+  WeeklyDefault,
 } from "../types";
-import { hoursFromStates, statesFromHours } from "../availability";
+import { hoursFromStates, normaliseWeeklyDefault, statesFromHours } from "../availability";
 import { PLANS } from "../types";
 import { seedMemory, type MemoryDatabase } from "./types";
 import type { DataStore, InviteLookup, TaskFilters } from "./types";
@@ -264,6 +267,139 @@ export class MemoryStore implements DataStore {
     const hours = hoursFromStates(clean);
     if (hours.length) legacy[date] = hours;
     else delete legacy[date];
+  }
+
+  /* ------------------------- join link + requests ------------------------ */
+
+  async getJoinLink(orgId: string): Promise<JoinLink> {
+    const d = db();
+    const existing = d.joinLinks[orgId];
+    if (existing) return existing;
+    const created: JoinLink & { orgName: string } = {
+      orgId,
+      token: randomUUID().replace(/-/g, ""),
+      enabled: true,
+      createdAt: new Date().toISOString(),
+      orgName: d.org.id === orgId ? d.org.name : "Studio",
+    };
+    d.joinLinks[orgId] = created;
+    return created;
+  }
+
+  async setJoinLinkEnabled(orgId: string, enabled: boolean): Promise<void> {
+    const link = await this.getJoinLink(orgId);
+    const stored = db().joinLinks[orgId];
+    if (!stored) return;
+    stored.enabled = enabled;
+    void link;
+  }
+
+  async rotateJoinLink(orgId: string): Promise<JoinLink> {
+    const d = db();
+    const previous = await this.getJoinLink(orgId);
+    const orgName = (d.joinLinks[orgId]?.orgName ?? (d.org.id === orgId ? d.org.name : "Studio"));
+    const next: JoinLink & { orgName: string } = {
+      ...previous,
+      orgName,
+      token: randomUUID().replace(/-/g, ""),
+      enabled: true,
+      createdAt: new Date().toISOString(),
+    };
+    d.joinLinks[orgId] = next;
+    return next;
+  }
+
+  async findJoinLink(token: string): Promise<{ orgId: string; orgName: string; enabled: boolean } | null> {
+    const link = Object.values(db().joinLinks).find((l) => l.token === token);
+    if (!link) return null;
+    return { orgId: link.orgId, orgName: link.orgName, enabled: link.enabled };
+  }
+
+  async requestToJoin(
+    token: string,
+    userId: string,
+    note?: string | null,
+  ): Promise<{ orgId: string; alreadyPending: boolean }> {
+    const link = await this.findJoinLink(token);
+    if (!link) throw new Error("This link is no longer valid");
+    if (!link.enabled) throw new Error("This link is turned off");
+    const d = db();
+    if (d.memberships.some((m) => m.orgId === link.orgId && m.userId === userId)) {
+      throw new Error("You're already in this studio");
+    }
+    const pending = d.joinRequests.find(
+      (r) => r.orgId === link.orgId && r.userId === userId && r.status === "pending",
+    );
+    if (pending) return { orgId: link.orgId, alreadyPending: true };
+
+    const profile = d.profiles.find((p) => p.id === userId);
+    d.joinRequests.push({
+      id: randomUUID(),
+      orgId: link.orgId,
+      userId,
+      profile: profile ?? { id: userId, email: "", fullName: null, avatarUrl: null },
+      note: note?.trim() || null,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      decidedAt: null,
+    });
+    return { orgId: link.orgId, alreadyPending: false };
+  }
+
+  async listJoinRequests(orgId: string): Promise<JoinRequest[]> {
+    return db()
+      .joinRequests.filter((r) => r.orgId === orgId && r.status === "pending")
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async approveJoinRequest(orgId: string, requestId: string): Promise<void> {
+    const d = db();
+    const request = d.joinRequests.find((r) => r.orgId === orgId && r.id === requestId);
+    if (!request || request.status !== "pending") throw new Error("That request is no longer open");
+    if (d.memberships.some((m) => m.orgId === orgId && m.userId === request.userId)) {
+      throw new Error("They're already in this studio");
+    }
+    if (d.memberships.filter((m) => m.orgId === orgId).length >= d.org.seatLimit) {
+      throw new Error("This studio has reached its seat limit. Upgrade the plan first.");
+    }
+    d.memberships.push({
+      id: randomUUID(),
+      orgId,
+      userId: request.userId,
+      role: "member",
+      capacity: 40,
+    });
+    request.status = "approved";
+    request.decidedAt = new Date().toISOString();
+  }
+
+  async declineJoinRequest(orgId: string, requestId: string): Promise<void> {
+    const request = db().joinRequests.find((r) => r.orgId === orgId && r.id === requestId);
+    if (!request || request.status !== "pending") throw new Error("That request is no longer open");
+    request.status = "declined";
+    request.decidedAt = new Date().toISOString();
+  }
+
+  async getMyJoinRequest(orgId: string, userId: string): Promise<JoinRequest | null> {
+    return (
+      db().joinRequests.find((r) => r.orgId === orgId && r.userId === userId && r.status === "pending") ?? null
+    );
+  }
+
+  /* --------------------------- weekly default --------------------------- */
+
+  async getWeeklyDefault(orgId: string, userId: string): Promise<WeeklyDefault | null> {
+    return db().weeklyDefaults[`${orgId}:${userId}`] ?? null;
+  }
+
+  async setWeeklyDefault(orgId: string, userId: string, week: WeeklyDefault | null): Promise<void> {
+    const membership = db().memberships.find((m) => m.orgId === orgId && m.userId === userId);
+    if (!membership) throw new Error("Not a member of this organization");
+    if (membership.role !== "member") throw new Error("Availability is only tracked for members");
+    const key = `${orgId}:${userId}`;
+    const clean = normaliseWeeklyDefault(week);
+    if (Object.keys(clean).length) db().weeklyDefaults[key] = clean;
+    else delete db().weeklyDefaults[key];
   }
 
   async listInvites(orgId: string): Promise<Invite[]> {

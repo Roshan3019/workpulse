@@ -175,7 +175,7 @@ export function TeamsManager({ teams, members }: { teams: Team[]; members: Membe
                 {freelancers.map((m) => (
                   <label
                     key={m.userId}
-                    className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 transition-colors hover:bg-[#f7f8fc]"
+                    className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 transition-colors hover:bg-[#f8f6f3]"
                   >
                     <input
                       type="checkbox"

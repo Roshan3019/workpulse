@@ -1,4 +1,4 @@
-import type { AvailabilityMap, AvailabilityStates, SlotState } from "./types";
+import type { AvailabilityMap, AvailabilityStates, SlotState, WeeklyDefault } from "./types";
 
 /**
  * The two availability shapes, and the conversions between them.
@@ -125,6 +125,60 @@ export function normaliseStates(raw: unknown): Record<number, SlotState> {
     const hour = Number(k);
     if (!Number.isInteger(hour) || hour < 0 || hour > 23) continue;
     if (v === "free" || v === "busy") out[hour] = v;
+  }
+  return out;
+}
+
+/* --------------------------------------------------------------------------
+   Weekly defaults
+
+   A member can save a usual week once. Any day without a row of its own
+   inherits the template for its weekday, so future weeks arrive pre-filled.
+   The precedence rule lives here — one function, used by both stores and by
+   the editor — so the UI can never disagree with the database.
+   -------------------------------------------------------------------------- */
+
+/** Expand a template over a date range, leaving days that already have data alone. */
+export function applyWeeklyDefault(
+  week: WeeklyDefault | null,
+  dates: string[],
+  explicit: AvailabilityStates,
+): { states: AvailabilityStates; fromDefault: string[] } {
+  const out: AvailabilityStates = { ...explicit };
+  const fromDefault: string[] = [];
+  if (!week) return { states: out, fromDefault };
+
+  for (const date of dates) {
+    if (out[date] && Object.keys(out[date]).length) continue;
+    const day = week[dayOfWeek(date)];
+    if (!day || !Object.keys(day).length) continue;
+    out[date] = { ...day };
+    fromDefault.push(date);
+  }
+  return { states: out, fromDefault };
+}
+
+/** Sunday = 0 … Saturday = 6, matching Postgres `extract(dow)` and the template keys. */
+export function dayOfWeek(isoDate: string): number {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/** Drop empty weekdays and coerce the keys to numbers, ready for the DB. */
+export function normaliseWeeklyDefault(input: unknown): WeeklyDefault {
+  const out: WeeklyDefault = {};
+  if (!input || typeof input !== "object") return out;
+  for (const [dayKey, day] of Object.entries(input as Record<string, unknown>)) {
+    const dayNumber = Number(dayKey);
+    if (!Number.isInteger(dayNumber) || dayNumber < 0 || dayNumber > 6) continue;
+    if (!day || typeof day !== "object") continue;
+    const clean: Record<number, SlotState> = {};
+    for (const [hourKey, state] of Object.entries(day as Record<string, unknown>)) {
+      const hour = Number(hourKey);
+      if (!Number.isInteger(hour) || hour < 0 || hour > 23) continue;
+      if (state === "free" || state === "busy") clean[hour] = state;
+    }
+    if (Object.keys(clean).length) out[dayNumber] = clean;
   }
   return out;
 }

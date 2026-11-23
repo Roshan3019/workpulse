@@ -2,6 +2,8 @@ import type {
   AvailabilityMap,
   AvailabilityStates,
   Invite,
+  JoinLink,
+  JoinRequest,
   Member,
   Membership,
   OrgRole,
@@ -11,6 +13,7 @@ import type {
   SlotState,
   Task,
   Team,
+  WeeklyDefault,
 } from "../types";
 import { nextDates, todayISO } from "../dates";
 import { statesFromHours } from "../availability";
@@ -88,6 +91,31 @@ export interface DataStore {
   getInviteByToken(token: string): Promise<InviteLookup | null>;
   createInvite(orgId: string, email: string, role: OrgRole): Promise<Invite>;
   revokeInvite(orgId: string, inviteId: string): Promise<void>;
+
+  // join link + requests ---------------------------------------------------
+  /** The studio's single shareable link, created on first read. */
+  getJoinLink(orgId: string): Promise<JoinLink>;
+  /** Turn the common link on/off without changing its token. */
+  setJoinLinkEnabled(orgId: string, enabled: boolean): Promise<void>;
+  /** Rotate the token — every previously shared link stops working. */
+  rotateJoinLink(orgId: string): Promise<JoinLink>;
+  /** Resolve a join link by token for the public landing page. */
+  findJoinLink(token: string): Promise<{ orgId: string; orgName: string; enabled: boolean } | null>;
+  /** The signed-in person asks to join. Idempotent while a request is pending. */
+  requestToJoin(token: string, userId: string, note?: string | null): Promise<{ orgId: string; alreadyPending: boolean }>;
+  /** Admin inbox. `pending` only, oldest first. */
+  listJoinRequests(orgId: string): Promise<JoinRequest[]>;
+  /** Approve: creates the membership as a member. Returns the userId admitted. */
+  approveJoinRequest(orgId: string, requestId: string): Promise<void>;
+  declineJoinRequest(orgId: string, requestId: string): Promise<void>;
+  /** The signed-in person's outstanding request, for the "waiting" screen. */
+  getMyJoinRequest(orgId: string, userId: string): Promise<JoinRequest | null>;
+
+  // weekly default ---------------------------------------------------------
+  /** The member's reusable week, or null when they haven't set one. */
+  getWeeklyDefault(orgId: string, userId: string): Promise<WeeklyDefault | null>;
+  /** Replace (or, with null, clear) the template. Dated days are never touched. */
+  setWeeklyDefault(orgId: string, userId: string, week: WeeklyDefault | null): Promise<void>;
 }
 
 /* ==========================================================================
@@ -128,6 +156,10 @@ export interface MemoryDatabase {
   /** key: `${orgId}:${userId}` — tri-state source of truth */
   availabilityStates: Record<string, Record<string, Record<number, SlotState>>>;
   invites: (Invite & { orgId: string })[];
+  joinLinks: Record<string, JoinLink & { orgName: string }>;
+  joinRequests: JoinRequest[];
+  /** key: `${orgId}:${userId}` */
+  weeklyDefaults: Record<string, WeeklyDefault>;
   demoUsers: (Profile & { role: OrgRole; capacity: number })[];
 }
 
@@ -232,6 +264,18 @@ export function seedMemory(): MemoryDatabase {
     availability,
     availabilityStates,
     invites: [],
+    // Seeded so the share flow is demoable without creating one first.
+    weeklyDefaults: {},
+    joinLinks: {
+      [org.id]: {
+        orgId: org.id,
+        token: "demo-join-link-token",
+        enabled: true,
+        createdAt: now,
+        orgName: org.name,
+      },
+    },
+    joinRequests: [],
     demoUsers: DEMO_USERS,
   };
 }

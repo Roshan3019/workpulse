@@ -4,8 +4,9 @@ import { getStore } from "@/lib/data";
 import { orgMembers } from "@/lib/data/request-cache";
 import { nextDatesIn, shortDate, weekdayOf } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
-import { isAdminRole } from "@/lib/types";
-import { countStates } from "@/lib/availability";
+import { isAdminRole, type AvailabilityStates, type WeeklyDefault } from "@/lib/types";
+import { applyWeeklyDefault, countStates } from "@/lib/availability";
+import { WeeklyDefaultEditor } from "@/components/availability/WeeklyDefaultEditor";
 
 export const metadata = { title: "Availability" };
 export const dynamic = "force-dynamic";
@@ -36,7 +37,25 @@ export default async function AvailabilityPage({
     const [members, params] = await Promise.all([orgMembers(orgId), searchParams]);
     const freelancers = members.filter((m) => m.role === "member");
     const userIds = freelancers.map((m) => m.userId);
-    const availability = userIds.length ? await store.getAvailabilityStates(orgId, userIds, dates) : {};
+
+    /*
+     * Admins read the same fallback the member sees: stored days win, and any
+     * day without a row inherits that person's usual week. Otherwise a member
+     * with a default saved would look empty here while looking full to
+     * themselves — the one thing this screen must never do.
+     */
+    const stored: Record<string, AvailabilityStates> = userIds.length
+      ? await store.getAvailabilityStates(orgId, userIds, dates)
+      : {};
+    const defaults: (WeeklyDefault | null)[] = userIds.length
+      ? await Promise.all(userIds.map((id) => store.getWeeklyDefault(orgId, id)))
+      : [];
+    const availability: Record<string, AvailabilityStates> = Object.fromEntries(
+      userIds.map((id, index) => [
+        id,
+        applyWeeklyDefault(defaults[index] ?? null, dates.slice(0, 7), stored[id] ?? {}).states,
+      ]),
+    );
 
     const selectedId =
       params.member && freelancers.some((m) => m.userId === params.member) ? params.member : "";
@@ -59,7 +78,6 @@ export default async function AvailabilityPage({
             <EmptyState
               title="No freelancers yet"
               hint="Availability appears once people join your studio."
-              icon="📅"
             />
           </div>
         ) : (
@@ -85,7 +103,7 @@ export default async function AvailabilityPage({
                 return (
                   <div
                     key={m.userId}
-                    className={`border-b border-line last:border-b-0 ${open ? "bg-[#fbfbfe]" : ""}`}
+                    className={`border-b border-line last:border-b-0 ${open ? "bg-[#fbfaf8]" : ""}`}
                   >
                     <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 sm:flex-nowrap">
                       <a
@@ -118,13 +136,13 @@ export default async function AvailabilityPage({
                           return (
                             <span
                               key={date}
-                              title={`${weekdayOf(date)} — ${c.free}h free, ${c.busy}h busy, ${c.unassigned}h unassigned`}
+                              title={`${weekdayOf(date)}: ${c.free}h free, ${c.busy}h busy, ${c.unassigned}h unassigned`}
                               className={`relative flex h-8 w-[34px] items-end justify-center overflow-hidden rounded-md border text-[9.5px] font-medium tabular-nums ${
                                 tone === "empty"
-                                  ? "border-dashed border-line-2 bg-[#fbfbfe] text-faint"
+                                  ? "border-dashed border-line-2 bg-[#fbfaf8] text-faint"
                                   : tone === "free"
-                                    ? "border-[#cdeedd] bg-ok-soft/70 text-[#047857]"
-                                    : "border-[#f6d4d4] bg-bad-soft/70 text-[#b91c1c]"
+                                    ? "border-[#cfe6d8] bg-ok-soft/70 text-[#047857]"
+                                    : "border-[#efd5d0] bg-bad-soft/70 text-[#b91c1c]"
                               }`}
                             >
                               {/* the filled bar = share of the day that is free */}
@@ -175,11 +193,23 @@ export default async function AvailabilityPage({
   }
 
   /* --------------------------- MEMBER: editable ---------------------------- */
-  const availability = await store.getAvailabilityStates(orgId, [session.membership.userId], dates);
-  const mine = availability[session.membership.userId] ?? {};
+  const [availability, weeklyDefault] = await Promise.all([
+    store.getAvailabilityStates(orgId, [session.membership.userId], dates),
+    store.getWeeklyDefault(orgId, session.membership.userId),
+  ]);
+  const stored = availability[session.membership.userId] ?? {};
+
+  /*
+   * Days with no row of their own inherit the usual week. `mine` is what the
+   * grid shows; `stored` is what's actually persisted — saving the grid writes
+   * the inherited days as real entries, so an explicit edit always wins from
+   * then on.
+   */
+  const { states: mine, fromDefault } = applyWeeklyDefault(weeklyDefault, dates.slice(0, 7), stored);
   const freeNext7 = dates
     .slice(0, 7)
     .reduce((sum, d) => sum + countStates(mine[d] ?? {}).free, 0);
+  const usingDefault = fromDefault.length > 0;
 
   return (
     <div className="space-y-5">
@@ -192,6 +222,15 @@ export default async function AvailabilityPage({
         </div>
         <Badge tone="green">{session.membership.capacity}h weekly capacity</Badge>
       </div>
+
+      <WeeklyDefaultEditor initial={weeklyDefault} />
+
+      {usingDefault ? (
+        <p className="px-1 text-[12px] text-muted">
+          {fromDefault.length} {fromDefault.length === 1 ? "day" : "days"} below are filled in from your
+          usual week. Editing a day saves it as its own entry.
+        </p>
+      ) : null}
 
       <Section
         title={session.user.fullName ?? session.user.email}

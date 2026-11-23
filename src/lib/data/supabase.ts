@@ -1,10 +1,12 @@
 import "server-only";
 import { createSupabaseServerClient } from "../supabase/server";
-import { hoursFromStates, normaliseStates } from "../availability";
+import { hoursFromStates, normaliseStates, normaliseWeeklyDefault } from "../availability";
 import type {
   AvailabilityMap,
   AvailabilityStates,
   Invite,
+  JoinLink,
+  JoinRequest,
   Member,
   Membership,
   OrgRole,
@@ -14,6 +16,7 @@ import type {
   SlotState,
   Task,
   Team,
+  WeeklyDefault,
 } from "../types";
 import type { DataStore, InviteLookup, TaskFilters } from "./types";
 
@@ -505,5 +508,162 @@ export class SupabaseStore implements DataStore {
     const sb = await this.sb();
     const { error } = await sb.from("invites").delete().eq("id", inviteId).eq("org_id", orgId);
     fail(error, "revoke invite");
+  }
+
+  /* ------------------------- join link + requests ------------------------ */
+
+  /* --------------------------- weekly default --------------------------- */
+
+  async getWeeklyDefault(orgId: string, userId: string): Promise<WeeklyDefault | null> {
+    const sb = await this.sb();
+    const { data, error } = await sb
+      .from("availability")
+      .select("default_states")
+      .eq("org_id", orgId)
+      .eq("user_id", userId)
+      .is("slot_date", null)
+      .maybeSingle();
+    if (error || !data) return null;
+    const week = normaliseWeeklyDefault((data as Row).default_states);
+    return Object.keys(week).length ? week : null;
+  }
+
+  async setWeeklyDefault(orgId: string, userId: string, week: WeeklyDefault | null): Promise<void> {
+    const sb = await this.sb();
+    const clean = normaliseWeeklyDefault(week);
+    const payload = Object.keys(clean).length ? clean : null;
+    const { error } = await sb.rpc("set_weekly_default", { target_states: payload });
+    void orgId;
+    void userId;
+    fail(error, "save weekly default");
+  }
+
+  async getJoinLink(orgId: string): Promise<JoinLink> {
+    const sb = await this.sb();
+    const { data, error } = await sb.rpc("ensure_join_link", { target_org: orgId });
+    fail(error, "read join link");
+    const row = (Array.isArray(data) ? data[0] : data) as Row;
+    return {
+      orgId: row.org_id,
+      token: row.token,
+      enabled: row.enabled,
+      createdAt: row.created_at,
+    };
+  }
+
+  async setJoinLinkEnabled(orgId: string, enabled: boolean): Promise<void> {
+    const sb = await this.sb();
+    const { error } = await sb
+      .from("join_links")
+      .update({ enabled })
+      .eq("org_id", orgId);
+    fail(error, "update join link");
+  }
+
+  async rotateJoinLink(orgId: string): Promise<JoinLink> {
+    const sb = await this.sb();
+    const { data, error } = await sb.rpc("rotate_join_link", { target_org: orgId });
+    fail(error, "rotate join link");
+    const row = (Array.isArray(data) ? data[0] : data) as Row;
+    return {
+      orgId: row.org_id,
+      token: row.token,
+      enabled: row.enabled,
+      createdAt: row.created_at,
+    };
+  }
+
+  async findJoinLink(token: string): Promise<{ orgId: string; orgName: string; enabled: boolean } | null> {
+    const sb = await this.sb();
+    const { data, error } = await sb.rpc("join_link_preview", { link_token: token });
+    if (error) return null;
+    const row = (Array.isArray(data) ? data[0] : data) as Row | null | undefined;
+    if (!row) return null;
+    return { orgId: row.org_id, orgName: row.org_name, enabled: row.enabled };
+  }
+
+  async requestToJoin(
+    token: string,
+    userId: string,
+    note?: string | null,
+  ): Promise<{ orgId: string; alreadyPending: boolean }> {
+    const sb = await this.sb();
+    const { data, error } = await sb.rpc("request_to_join", {
+      link_token: token,
+      request_note: note ?? null,
+    });
+    fail(error, "send join request");
+    const row = (Array.isArray(data) ? data[0] : data) as Row;
+    void userId;
+    return { orgId: row.org_id, alreadyPending: Boolean(row.already_pending) };
+  }
+
+  async listJoinRequests(orgId: string): Promise<JoinRequest[]> {
+    const sb = await this.sb();
+    const { data, error } = await sb
+      .from("join_requests")
+      .select("*, profile:profiles!join_requests_user_id_fkey(id,email,full_name,avatar_url)")
+      .eq("org_id", orgId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+    fail(error, "list join requests");
+    return ((data ?? []) as Row[]).map((r) => ({
+      id: r.id,
+      orgId: r.org_id,
+      userId: r.user_id,
+      profile: {
+        id: r.profile?.id ?? r.user_id,
+        email: r.profile?.email ?? "",
+        fullName: r.profile?.full_name ?? null,
+        avatarUrl: r.profile?.avatar_url ?? null,
+      },
+      note: r.note ?? null,
+      status: r.status,
+      createdAt: r.created_at,
+      decidedAt: r.decided_at ?? null,
+    }));
+  }
+
+  async approveJoinRequest(orgId: string, requestId: string): Promise<void> {
+    const sb = await this.sb();
+    const { error } = await sb.rpc("decide_join_request", {
+      target_org: orgId,
+      request_id: requestId,
+      approve: true,
+    });
+    fail(error, "approve join request");
+  }
+
+  async declineJoinRequest(orgId: string, requestId: string): Promise<void> {
+    const sb = await this.sb();
+    const { error } = await sb.rpc("decide_join_request", {
+      target_org: orgId,
+      request_id: requestId,
+      approve: false,
+    });
+    fail(error, "decline join request");
+  }
+
+  async getMyJoinRequest(orgId: string, userId: string): Promise<JoinRequest | null> {
+    const sb = await this.sb();
+    const { data, error } = await sb
+      .from("join_requests")
+      .select("*")
+      .eq("org_id", orgId)
+      .eq("user_id", userId)
+      .eq("status", "pending")
+      .maybeSingle();
+    if (error || !data) return null;
+    const r = data as Row;
+    return {
+      id: r.id,
+      orgId: r.org_id,
+      userId: r.user_id,
+      profile: { id: r.user_id, email: "", fullName: null, avatarUrl: null },
+      note: r.note ?? null,
+      status: r.status,
+      createdAt: r.created_at,
+      decidedAt: r.decided_at ?? null,
+    };
   }
 }

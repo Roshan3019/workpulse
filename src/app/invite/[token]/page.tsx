@@ -21,7 +21,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
   if (!invite) {
     return (
       <InviteShell>
-        <h1 className="text-[24px] font-extrabold tracking-[-0.02em]">This invite link is no longer valid</h1>
+        <h1 className="text-[24px] font-semibold tracking-[-0.02em]">This invite link is no longer valid</h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
           It may have expired after 14 days, already been used, or been revoked by an admin. Ask whoever invited you
           to send a fresh link.
@@ -48,12 +48,12 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
         <div className="mb-4 flex justify-center">
           <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-brand-soft text-xl">🏢</span>
         </div>
-        <h1 className="text-[24px] font-extrabold tracking-[-0.02em]">
+        <h1 className="text-[24px] font-semibold tracking-[-0.02em]">
           {invite.orgName ? `Join ${invite.orgName}` : "You're invited"}
         </h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
-          You&apos;ve been invited to collaborate as a <b>{invite.role}</b>. Sign in — or create a free account in
-          seconds — and you&apos;ll join the team automatically.
+          You&apos;ve been invited to collaborate as a <b>{invite.role}</b>. Sign in, or create a free account in
+          seconds, and you&apos;ll join the team automatically.
           {invite.email ? (
             <>
               {" "}
@@ -75,7 +75,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
         </div>
 
         <p className="mt-4 text-[12px] leading-relaxed text-faint">
-          Google sign-in works too — you&apos;ll come back to this page to accept.
+          Google sign-in works too. You&apos;ll come back to this page to accept.
         </p>
       </InviteShell>
     );
@@ -92,7 +92,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
         <div className="mb-4 flex justify-center">
           <Avatar id={ctx.user.id} name={ctx.user.fullName} email={ctx.user.email} size={52} />
         </div>
-        <h1 className="text-[24px] font-extrabold tracking-[-0.02em]">This invite is for someone else</h1>
+        <h1 className="text-[24px] font-semibold tracking-[-0.02em]">This invite is for someone else</h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
           The invite for {invite.orgName ? <b>{invite.orgName}</b> : "this team"} was sent to{" "}
           <b>{invite.email}</b>, but you&apos;re signed in as <b>{ctx.user.email}</b>.
@@ -121,7 +121,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
         <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-brand-soft text-xl">🏢</span>
       </div>
 
-      <h1 className="text-[24px] font-extrabold tracking-[-0.02em]">
+      <h1 className="text-[24px] font-semibold tracking-[-0.02em]">
         {invite.orgName ? `Join ${invite.orgName}` : "Join your team"}
       </h1>
       <p className="mt-2 text-[13.5px] leading-relaxed text-muted">

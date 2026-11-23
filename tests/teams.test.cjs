@@ -189,6 +189,89 @@ const OWNER = "11111111-1111-4111-8111-111111111111";
 
   check("both seeded teams map to real demo people", DEMO_USERS.length >= 6 && seeded.every((t) => t.memberIds.length > 0));
 
+
+  /* --------------------- weekly default (read-time) -------------------- */
+  {
+    // Monday 2026-12-07 .. Sunday 2026-12-13
+    const week = ["2026-12-07", "2026-12-08", "2026-12-09", "2026-12-10", "2026-12-11", "2026-12-12", "2026-12-13"];
+    const tpl = { 1: { 9: "free", 10: "free" }, 4: { 14: "busy" } };
+
+    check("dayOfWeek: 0=Sunday", A.dayOfWeek("2026-12-13") === 0, String(A.dayOfWeek("2026-12-13")));
+    check("dayOfWeek: Monday is 1", A.dayOfWeek("2026-12-07") === 1);
+    check("dayOfWeek: Thursday is 4", A.dayOfWeek("2026-12-10") === 4);
+
+    const applied = A.applyWeeklyDefault(tpl, week, {});
+    check("a template fills every matching weekday", applied.states["2026-12-07"][9] === "free" && applied.states["2026-12-10"][14] === "busy");
+    check("days with no template entry stay empty", applied.states["2026-12-08"] === undefined);
+    check("applied days are reported", applied.fromDefault.length === 2, applied.fromDefault.join(","));
+    check("no template means nothing is filled in", A.applyWeeklyDefault(null, week, {}).fromDefault.length === 0);
+
+    const override = A.applyWeeklyDefault(tpl, week, { "2026-12-07": { 20: "free" } });
+    check("an explicit day wins over the template", override.states["2026-12-07"][20] === "free" && override.states["2026-12-07"][9] === undefined);
+    check("other days still inherit", override.states["2026-12-10"][14] === "busy");
+
+    const normalised = A.normaliseWeeklyDefault({ "1": { "9": "free", "99": "free", "10": "nope" }, "9": {}, "2": {} });
+    check("normalise drops bad hours, bad states and empty days", JSON.stringify(normalised) === '{"1":{"9":"free"}}', JSON.stringify(normalised));
+    check("normalise survives garbage", Object.keys(A.normaliseWeeklyDefault("nonsense")).length === 0);
+  }
+
+  /* ----------------------- join link + requests ---------------------- */
+  {
+    const OUTSIDER = "99999999-9999-4999-8999-999999999999";
+    const OUTSIDER2 = "99999999-9999-4999-8999-999999999998";
+    (await store.getOrg(DEMO_ORG_ID));
+
+    const link = await store.getJoinLink(DEMO_ORG_ID);
+    check("a studio has one join link", Boolean(link.token), link.token.slice(0, 8));
+    check("the link is stable across reads", (await store.getJoinLink(DEMO_ORG_ID)).token === link.token);
+    check("the link resolves publicly", (await store.findJoinLink(link.token))?.orgId === DEMO_ORG_ID);
+    check("an unknown token resolves to nothing", (await store.findJoinLink("nope")) === null);
+
+    const before = (await store.listMembers(DEMO_ORG_ID)).length;
+    const asked = await store.requestToJoin(link.token, OUTSIDER, "I do motion design");
+    check("an outsider can ask to join", asked.alreadyPending === false);
+    check("asking adds nobody to the studio", (await store.listMembers(DEMO_ORG_ID)).length === before);
+
+    const inbox = await store.listJoinRequests(DEMO_ORG_ID);
+    check("the request lands in the admin inbox", inbox.length === 1);
+    check("the inbox shows who asked and why", inbox[0].userId === OUTSIDER && inbox[0].note === "I do motion design");
+    check("the requester can see their own pending request", Boolean(await store.getMyJoinRequest(DEMO_ORG_ID, OUTSIDER)));
+
+    const twice = await store.requestToJoin(link.token, OUTSIDER);
+    check("asking twice keeps one request", twice.alreadyPending === true && (await store.listJoinRequests(DEMO_ORG_ID)).length === 1);
+
+    await store.approveJoinRequest(DEMO_ORG_ID, inbox[0].id);
+    const after = await store.listMembers(DEMO_ORG_ID);
+    check("approval creates the membership", after.length === before + 1);
+    check("they join as a member", after.find((m) => m.userId === OUTSIDER)?.role === "member");
+    check("the inbox empties", (await store.listJoinRequests(DEMO_ORG_ID)).length === 0);
+    check("their waiting state clears", (await store.getMyJoinRequest(DEMO_ORG_ID, OUTSIDER)) === null);
+
+    let blocked = false;
+    try { await store.requestToJoin(link.token, OUTSIDER); } catch { blocked = true; }
+    check("a member cannot ask again", blocked);
+
+    await store.requestToJoin(link.token, OUTSIDER2);
+    const declined = await store.listJoinRequests(DEMO_ORG_ID);
+    await store.declineJoinRequest(DEMO_ORG_ID, declined[0].id);
+    check("declining admits nobody", (await store.listMembers(DEMO_ORG_ID)).length === before + 1);
+    let redecide = false;
+    try { await store.approveJoinRequest(DEMO_ORG_ID, declined[0].id); } catch { redecide = true; }
+    check("a declined request cannot then be approved", redecide);
+
+    await store.setJoinLinkEnabled(DEMO_ORG_ID, false);
+    let paused = false;
+    try { await store.requestToJoin(link.token, "99999999-9999-4999-8999-999999999997"); }
+    catch (error) { paused = String(error.message).includes("turned off"); }
+    check("a paused link refuses requests", paused);
+    await store.setJoinLinkEnabled(DEMO_ORG_ID, true);
+
+    const rotated = await store.rotateJoinLink(DEMO_ORG_ID);
+    check("rotating mints a new token", rotated.token !== link.token);
+    check("the old link stops working", (await store.findJoinLink(link.token)) === null);
+    check("the new link works", Boolean(await store.findJoinLink(rotated.token)));
+  }
+
   console.log(`\n=== ${pass} passed, ${fail} failed ===`);
   process.exit(fail ? 1 : 0);
 })().catch((error) => {
