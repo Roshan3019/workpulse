@@ -132,12 +132,14 @@ export default async function AvailabilityPage({
                             <span
                               key={date}
                               title={`${weekdayOf(date)}: ${c.free}h free, ${c.busy}h busy, ${c.unassigned}h unassigned`}
-                              className={`relative flex h-8 w-[34px] flex-col justify-end overflow-hidden rounded-[5px] border ${
-                                total === 0 ? "border-dashed border-line-2 bg-[#fbfaf8]" : "border-line"
+                              className={`relative flex h-8 w-[34px] overflow-hidden rounded-[5px] border ${
+                                total === 0
+                                  ? "items-center justify-center border-dashed border-line-2 bg-[#fbfaf8]"
+                                  : "flex-col justify-end border-line"
                               }`}
                             >
                               {total === 0 ? (
-                                <span className="pb-1 text-center text-[10px] text-faint">–</span>
+                                <span className="text-[11px] leading-none text-faint">–</span>
                               ) : (
                                 <>
                                   {/* One bar, two honest segments: the share of the day spoken for. */}
@@ -151,9 +153,6 @@ export default async function AvailabilityPage({
                                     style={{ height: `${freePct}%` }}
                                     aria-hidden="true"
                                   />
-                                  <span className="relative pb-1 text-center text-[10px] font-medium tabular-nums text-ink-2">
-                                    {c.free}
-                                  </span>
                                 </>
                               )}
                             </span>
@@ -161,8 +160,26 @@ export default async function AvailabilityPage({
                         })}
                       </span>
 
-                      <span className="w-[72px] shrink-0 text-right text-[12.5px] font-medium tabular-nums text-ink-2">
-                        {totalFree}h
+                      <span className="flex w-[72px] shrink-0 items-center justify-end gap-1.5">
+                        <span className="text-[12.5px] font-medium tabular-nums text-ink-2">
+                          {totalFree}h
+                        </span>
+                        <svg
+                          viewBox="0 0 12 12"
+                          aria-hidden="true"
+                          className={`h-2.5 w-2.5 shrink-0 text-faint transition-transform duration-150 ${
+                            open ? "rotate-90" : ""
+                          }`}
+                        >
+                          <path
+                            d="M4.5 2.5 8 6l-3.5 3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
                       </span>
                     </div>
 
@@ -183,8 +200,8 @@ export default async function AvailabilityPage({
               })}
             </div>
             <p className="px-1 text-[12px] text-faint">
-              Select a person to open their full week. Green is free, red is busy, grey means they
-              haven&apos;t filled it in.
+              The bar fills with the share of each day that is free, and empties as it books up. Open
+              a person to read their whole week.
             </p>
           </>
         )}
