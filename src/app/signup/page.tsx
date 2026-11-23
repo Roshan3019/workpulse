@@ -30,7 +30,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Signu
       <main className="mx-auto grid max-w-6xl items-start gap-10 px-5 py-8 lg:grid-cols-[1.05fr_.95fr] lg:py-14">
         <div className="hidden lg:block">
           <Badge tone="indigo">Free for up to 5 seats</Badge>
-          <h1 className="mt-5 text-[40px] leading-[1.08] font-extrabold tracking-[-0.025em]">
+          <h1 className="mt-5 text-[40px] leading-[1.08] font-semibold tracking-[-0.025em]">
             Set up your team in about two minutes.
           </h1>
           <ul className="mt-6 space-y-3 text-[14.5px] text-ink-2">
@@ -49,7 +49,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Signu
         </div>
 
         <div className="card mx-auto w-full max-w-md p-6 sm:p-8">
-          <h2 className="text-[22px] font-extrabold tracking-[-0.01em]">Create your workspace</h2>
+          <h2 className="text-[22px] font-semibold tracking-[-0.01em]">Create your workspace</h2>
           <p className="mt-1.5 mb-6 text-[13.5px] leading-relaxed text-muted">
             You&apos;ll be the owner and can invite the rest of the team right after.
           </p>

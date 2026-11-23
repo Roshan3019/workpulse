@@ -57,13 +57,13 @@ export default async function MyTasksPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="card p-4">
           <div className="label">Assigned hours</div>
-          <div className="mt-1.5 text-[26px] leading-none font-extrabold tabular-nums">{assignedHours}h</div>
+          <div className="mt-1.5 text-[24px] leading-none font-semibold tabular-nums">{assignedHours}h</div>
           <div className="mt-1 text-[12px] text-faint">of {session.membership.capacity}h capacity</div>
         </div>
         <div className="card p-4">
           <div className="label">Utilisation</div>
           <div className="mt-1.5 flex items-center gap-2">
-            <span className="text-[26px] leading-none font-extrabold tabular-nums">{utilisation}%</span>
+            <span className="text-[24px] leading-none font-semibold tabular-nums">{utilisation}%</span>
             <Badge tone={utilisation >= 100 ? "red" : utilisation >= 75 ? "amber" : "green"}>
               {utilisation >= 100 ? "Overloaded" : utilisation >= 75 ? "Busy" : "Available"}
             </Badge>
@@ -72,7 +72,7 @@ export default async function MyTasksPage() {
         </div>
         <div className="card p-4">
           <div className="label">Free next 7 days</div>
-          <div className="mt-1.5 text-[26px] leading-none font-extrabold tabular-nums">{freeNext7}h</div>
+          <div className="mt-1.5 text-[24px] leading-none font-semibold tabular-nums">{freeNext7}h</div>
           <div className="mt-1 text-[12px] text-faint">From your availability calendar</div>
         </div>
       </div>

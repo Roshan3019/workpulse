@@ -128,20 +128,20 @@ export function TeamSlotGrid({
               scroll={false}
               aria-current={active ? "page" : undefined}
               aria-label={`${weekdayOf(d)} ${shortDate(d)}${isToday ? ", today" : ""}`}
-              className={`flex h-11 flex-col items-center justify-center rounded-xl border text-center transition-colors ${
+              className={`flex h-11 flex-col items-center justify-center rounded-[8px] border text-center transition-colors duration-150 ${
                 active
                   ? "border-brand bg-brand text-white"
-                  : "border-line-2 bg-white text-ink-2 hover:border-[#c7ccdf] hover:bg-[#fafaff]"
+                  : "border-line-2 bg-white text-ink-2 hover:border-[#c9c2b6] hover:bg-[#fbfaf8]"
               }`}
             >
               <span
-                className={`text-[10px] font-bold tracking-[.06em] uppercase ${
+                className={`text-[10px] font-medium tracking-[.06em] uppercase ${
                   active ? "text-white/80" : isToday ? "text-brand" : "text-faint"
                 }`}
               >
                 {weekdayOf(d)}
               </span>
-              <span className="text-[13px] leading-tight font-bold tabular-nums">
+              <span className="text-[13px] leading-tight font-semibold tabular-nums">
                 {Number(d.slice(8, 10))}
               </span>
             </Link>
@@ -158,9 +158,9 @@ export function TeamSlotGrid({
       ) : (
         <>
           {/* ---------------- the day at a glance ---------------- */}
-          <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl bg-[#fafaff] px-3.5 py-2.5 text-[12.5px] text-muted">
+          <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl bg-[#fbfaf8] px-3.5 py-2.5 text-[12.5px] text-muted">
             <span>
-              <b className="text-[15px] font-extrabold tabular-nums text-ink">{total}</b>{" "}
+              <b className="text-[15px] font-semibold tabular-nums text-ink">{total}</b>{" "}
               {total === 1 ? "person" : "people"} on the team
             </span>
             <span>
@@ -175,7 +175,7 @@ export function TeamSlotGrid({
                   </span>
                 </>
               ) : (
-                <span className="font-semibold text-warn-dark">Nobody is free on this day yet</span>
+                <span className="font-medium text-warn-dark">Nobody is free on this day yet</span>
               )}
             </span>
             <span className="ml-auto flex flex-wrap items-center gap-3">
@@ -202,7 +202,7 @@ export function TeamSlotGrid({
           <div className="pb-1">
             {/* hour ruler */}
             <div className="flex items-center gap-1 pb-1.5">
-              <div className="w-[88px] shrink-0 pr-2 text-[10.5px] font-bold tracking-[.06em] text-faint uppercase sm:w-[132px]">
+              <div className="w-[88px] shrink-0 pr-2 text-[10.5px] font-medium tracking-[.06em] text-faint uppercase sm:w-[132px]">
                 <span className="hidden sm:inline">Teammate</span>
               </div>
               {ALL_HOURS.map((hour) => (
@@ -256,7 +256,7 @@ export function TeamSlotGrid({
                       );
                     })}
 
-                    <div className="flex w-[40px] shrink-0 items-baseline justify-end gap-1 text-[11.5px] font-bold tabular-nums">
+                    <div className="flex w-[40px] shrink-0 items-baseline justify-end gap-1 text-[11.5px] font-semibold tabular-nums">
                       <span className={counts.free ? "text-ink-2" : "text-faint"}>
                         {counts.free ? `${counts.free}h` : "—"}
                       </span>
@@ -273,7 +273,7 @@ export function TeamSlotGrid({
 
             {/* how many people are free in each visible hour */}
             <div className="mt-1 flex items-center gap-1 border-t border-line pt-2">
-              <div className="w-[88px] shrink-0 pr-2 text-[10.5px] font-bold tracking-[.06em] text-faint uppercase sm:w-[132px]">
+              <div className="w-[88px] shrink-0 pr-2 text-[10.5px] font-medium tracking-[.06em] text-faint uppercase sm:w-[132px]">
                 Free in hour
               </div>
               {ALL_HOURS.map((hour, index) => {
@@ -281,7 +281,7 @@ export function TeamSlotGrid({
                 return (
                   <div
                     key={hour}
-                    className={`min-w-0 flex-1 text-center text-[10.5px] font-bold tabular-nums ${shown(hour)} ${
+                    className={`min-w-0 flex-1 text-center text-[10.5px] font-semibold tabular-nums ${shown(hour)} ${
                       count === 0 ? "text-faint" : count === total ? "text-ok-dark" : "text-ink-2"
                     }`}
                   >
@@ -300,7 +300,7 @@ export function TeamSlotGrid({
           */}
           <div className="mt-3 border-t border-line pt-3">
             <div className="flex items-center gap-2">
-              <span className="w-[88px] shrink-0 text-[10px] font-bold tracking-[.06em] text-faint uppercase sm:w-[132px]">
+              <span className="w-[88px] shrink-0 text-[10px] font-medium tracking-[.06em] text-faint uppercase sm:w-[132px]">
                 Whole day
               </span>
               <div className="flex min-w-0 flex-1 gap-[2px]">

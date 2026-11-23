@@ -22,7 +22,7 @@ export default async function LandingPage() {
     },
     {
       title: "Client tasks & deadlines",
-      body: "Task, client, estimate, priority, deadline and progress — the five things you actually need to run a studio.",
+      body: "Task, client, estimate, priority, deadline and progress: the five things you actually need to run a studio.",
       icon: "🎯",
     },
     {
@@ -63,13 +63,13 @@ export default async function LandingPage() {
         <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-14 lg:grid-cols-[1.05fr_.95fr] lg:py-20">
           <div>
             <Badge tone="indigo">Team availability, decoded</Badge>
-            <h1 className="mt-5 text-[38px] leading-[1.05] font-extrabold tracking-[-0.025em] sm:text-[54px]">
+            <h1 className="mt-5 text-[38px] leading-[1.05] font-semibold tracking-[-0.025em] sm:text-[54px]">
               Know exactly <span className="text-brand">who&apos;s free</span>, who&apos;s slammed, and who&apos;s
               shipping.
             </h1>
             <p className="mt-5 max-w-xl text-[16px] leading-relaxed text-muted">
               WorkPulse gives you a live weekly view of every freelancer&apos;s free hours, the client work on their
-              plate, and how close each task is to done — all in one place.
+              plate, and how close each task is to done, all in one place.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link href="/signup" className="btn-primary">
@@ -80,8 +80,8 @@ export default async function LandingPage() {
               </Link>
             </div>
             {env.demoMode ? (
-              <p className="mt-3 text-[12.5px] font-extrabold text-brand-dark">
-                Demo mode is on — no account needed, click through the whole product with sample data.
+              <p className="mt-3 text-[12.5px] font-semibold text-brand-dark">
+                Demo mode is on. No account needed: click through the whole product with sample data.
               </p>
             ) : null}
           </div>
@@ -90,8 +90,8 @@ export default async function LandingPage() {
           <div className="card p-5">
             <div className="flex items-center justify-between">
               <div>
-                <div className="label">Workload per freelancer</div>
-                <p className="mt-1 text-sm font-semibold text-muted">Remaining hours vs weekly capacity</p>
+                <div className="text-[11.5px] font-medium text-muted">Workload per freelancer</div>
+                <p className="mt-0.5 text-[11.5px] text-faint">Remaining hours against weekly capacity</p>
               </div>
               <LogoMark size={30} />
             </div>
@@ -103,7 +103,7 @@ export default async function LandingPage() {
               ].map((row) => (
                 <div key={row.name}>
                   <div className="flex items-center justify-between text-[12.5px]">
-                    <span className="font-bold">{row.name}</span>
+                    <span className="font-medium">{row.name}</span>
                     <span className="text-muted">
                       {row.hours}h / {row.cap}h
                     </span>
@@ -117,17 +117,17 @@ export default async function LandingPage() {
                 </div>
               ))}
             </div>
-            <div className="mt-5 rounded-xl border border-line bg-[#fafaff] p-3">
-              <div className="label">Overall time slots · next 7 days</div>
+            <div className="mt-5 rounded-[8px] border border-line p-3">
+              <div className="text-[11.5px] font-medium text-muted">Team slots, next 7 days</div>
               <div className="mt-2 flex gap-1">
                 {[5, 7, 6, 8, 4, 2, 0].map((h, i) => (
                   <div
                     key={i}
-                    className="flex-1 rounded-md py-1.5 text-center text-[11px] font-bold text-white"
+                    className="flex-1 rounded-[4px] py-1.5 text-center text-[11px] font-medium tabular-nums"
                     style={{
                       background:
-                        h === 0 ? "#f1f3f9" : h <= 3 ? "#bfe9d6" : h <= 6 ? "#6ee7b7" : "#10b981",
-                      color: h === 0 ? "#9ca3af" : h <= 4 ? "#065f46" : "#fff",
+                        h === 0 ? "#f2efea" : h <= 3 ? "#dfede4" : h <= 6 ? "#a9cdb8" : "#3f8f63",
+                      color: h === 0 ? "#a09a90" : h <= 4 ? "#2f6b4a" : "#fff",
                     }}
                   >
                     {h}h
@@ -141,14 +141,14 @@ export default async function LandingPage() {
         {/* features */}
         <section className="border-y border-line bg-white/70">
           <div className="mx-auto max-w-6xl px-5 py-14">
-            <h2 className="text-[26px] font-extrabold tracking-[-0.02em] sm:text-[32px]">
+            <h2 className="text-[26px] font-semibold tracking-[-0.02em] sm:text-[32px]">
               Everything a freelance team needs. Nothing it doesn&apos;t.
             </h2>
             <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {features.map((f) => (
                 <div key={f.title} className="card p-5">
                   <div className="text-2xl">{f.icon}</div>
-                  <h3 className="mt-2 text-[15.5px] font-extrabold">{f.title}</h3>
+                  <h3 className="mt-2 text-[15.5px] font-semibold">{f.title}</h3>
                   <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{f.body}</p>
                 </div>
               ))}
@@ -159,9 +159,9 @@ export default async function LandingPage() {
         {/* pricing */}
         <section className="mx-auto max-w-6xl px-5 py-14">
           <div className="text-center">
-            <h2 className="text-[26px] font-extrabold tracking-[-0.02em] sm:text-[32px]">Simple, seat-based pricing</h2>
+            <h2 className="text-[26px] font-semibold tracking-[-0.02em] sm:text-[32px]">Simple, seat-based pricing</h2>
             <p className="mx-auto mt-2 max-w-xl text-[14.5px] text-muted">
-              Start free. Upgrade when your crew grows — every plan includes unlimited clients and tasks.
+              Start free. Upgrade when your crew grows. Every plan includes unlimited clients and tasks.
             </p>
           </div>
           <div className="mt-8 grid gap-4 lg:grid-cols-3">
@@ -171,15 +171,15 @@ export default async function LandingPage() {
                 className={`card flex flex-col p-6 ${key === "pro" ? "ring-2 ring-brand" : ""}`}
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-extrabold">{plan.label}</h3>
+                  <h3 className="text-lg font-semibold">{plan.label}</h3>
                   {key === "pro" ? <Badge tone="indigo">Popular</Badge> : null}
                 </div>
                 <p className="mt-1 text-[13px] text-muted">{plan.blurb}</p>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-[32px] font-extrabold tracking-[-0.03em] tabular-nums">
+                  <span className="text-[32px] font-semibold tracking-[-0.03em] tabular-nums">
                     {plan.priceMonthly === 0 ? "Free" : `$${plan.priceMonthly}`}
                   </span>
-                  {plan.priceMonthly ? <span className="text-sm font-extrabold text-muted">/mo</span> : null}
+                  {plan.priceMonthly ? <span className="text-sm font-semibold text-muted">/mo</span> : null}
                 </div>
                 <div className="mt-1 text-[12.5px] font-bold text-brand">Up to {plan.seats} seats</div>
                 <ul className="mt-4 flex-1 space-y-2 text-[13.5px] text-ink-2">
@@ -200,7 +200,7 @@ export default async function LandingPage() {
             ))}
           </div>
           <p className="mt-4 text-center text-[12.5px] text-faint">
-            Billing isn&apos;t wired yet in this build — plans and seat limits are enforced, payments come next.
+            Billing isn&apos;t wired yet in this build. Plans and seat limits are enforced; payments come next.
           </p>
         </section>
       </main>

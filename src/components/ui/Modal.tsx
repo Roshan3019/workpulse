@@ -34,7 +34,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-100 flex items-center justify-center overflow-y-auto bg-[rgba(17,24,39,.45)] p-4 backdrop-blur-[3px]"
+      className="fixed inset-0 z-100 flex items-center justify-center overflow-y-auto bg-[rgba(23,22,20,.38)] p-4"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -44,18 +44,18 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`animate-slide-in my-auto w-full ${wide ? "max-w-2xl" : "max-w-xl"} rounded-[22px] bg-white p-5 shadow-[0_12px_32px_rgba(16,24,40,.18)] sm:p-7`}
+        className={`animate-slide-in my-auto w-full ${wide ? "max-w-2xl" : "max-w-xl"} rounded-[14px] border border-line bg-white p-6 shadow-[0_16px_40px_-12px_rgba(23,22,20,.22)] sm:p-7`}
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-extrabold tracking-[-0.01em]">{title}</h2>
-            {subtitle ? <p className="mt-1 text-[13.5px] leading-relaxed text-muted">{subtitle}</p> : null}
+            <h2 className="text-[17px] font-semibold tracking-[-0.015em]">{title}</h2>
+            {subtitle ? <p className="mt-1 max-w-[46ch] text-[12.5px] leading-relaxed text-muted">{subtitle}</p> : null}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted transition hover:bg-[#f1f3fa] hover:text-ink"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted transition hover:bg-[#f2efea] hover:text-ink"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6 6 18M6 6l12 12" />

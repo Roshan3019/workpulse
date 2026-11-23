@@ -74,8 +74,8 @@ export default async function TasksPage({
         <TaskDialog members={members} teams={teams} />
       </div>
 
-      <form method="get" className="card grid gap-2.5 p-3.5 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
-        <label className="flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-full border border-line-2 bg-white px-4 focus-within:border-brand lg:min-w-[220px]">
+      <form method="get" className="card flex flex-wrap gap-2.5 p-3.5">
+        <label className="flex min-w-[220px] flex-1 items-center gap-2.5 rounded-full border border-line-2 bg-white px-4 py-2.5">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-faint">
             <circle cx="11" cy="11" r="7" />
             <path d="m20 20-3.5-3.5" />
@@ -84,17 +84,17 @@ export default async function TasksPage({
             name="q"
             defaultValue={params.q ?? ""}
             placeholder="Search task or client…"
-            className="h-full w-full min-w-0 bg-transparent text-sm outline-none"
+            className="w-full bg-transparent text-sm outline-none"
             aria-label="Search tasks"
           />
         </label>
-        <select name="status" defaultValue={params.status ?? "all"} className="h-10 w-full rounded-full border border-line-2 bg-white px-4 text-sm font-semibold text-ink-2 outline-none focus:border-brand lg:w-auto">
+        <select name="status" defaultValue={params.status ?? "all"} className="rounded-full border border-line-2 bg-white px-4 py-2.5 text-sm font-semibold text-ink-2 outline-none">
           <option value="all">All statuses</option>
           <option value="pending">Pending</option>
           <option value="in_progress">In progress</option>
           <option value="done">Done</option>
         </select>
-        <select name="assignee" defaultValue={params.assignee ?? "all"} className="h-10 w-full rounded-full border border-line-2 bg-white px-4 text-sm font-semibold text-ink-2 outline-none focus:border-brand lg:w-auto">
+        <select name="assignee" defaultValue={params.assignee ?? "all"} className="rounded-full border border-line-2 bg-white px-4 py-2.5 text-sm font-semibold text-ink-2 outline-none">
           <option value="all">All freelancers</option>
           {members
             .filter((m) => m.role === "member")
@@ -105,7 +105,7 @@ export default async function TasksPage({
             ))}
         </select>
         {teams.length ? (
-          <select name="team" defaultValue={params.team ?? "all"} className="h-10 w-full rounded-full border border-line-2 bg-white px-4 text-sm font-semibold text-ink-2 outline-none focus:border-brand lg:w-auto">
+          <select name="team" defaultValue={params.team ?? "all"} className="rounded-full border border-line-2 bg-white px-4 py-2.5 text-sm font-semibold text-ink-2 outline-none">
             <option value="all">All teams</option>
             {teams.map((t) => (
               <option key={t.id} value={t.slug}>
@@ -114,7 +114,7 @@ export default async function TasksPage({
             ))}
           </select>
         ) : null}
-        <button type="submit" className="btn-primary h-10 w-full px-5 lg:w-auto">
+        <button type="submit" className="btn-primary btn-sm px-5">
           Filter
         </button>
       </form>
@@ -146,7 +146,7 @@ export default async function TasksPage({
                       ) : null;
                     })()}
                   </div>
-                  <h2 className="mt-1.5 text-[16.5px] font-extrabold">{task.title}</h2>
+                  <h2 className="mt-1.5 text-[16.5px] font-semibold">{task.title}</h2>
                   {task.description ? (
                     <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed break-words text-muted">
                       {task.description}

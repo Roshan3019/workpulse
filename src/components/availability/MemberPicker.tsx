@@ -19,7 +19,7 @@ export function MemberPicker({ members, selected }: { members: Member[]; selecte
       <select
         value={selected}
         onChange={(event) => router.push(`/app/availability?member=${event.target.value}`)}
-        className="h-10 w-full appearance-none rounded-full border border-line-2 bg-white pl-4 pr-9 text-sm font-semibold text-ink-2 outline-none transition hover:border-[#c7ccdf] focus:border-brand sm:w-auto sm:min-w-[210px]"
+        className="h-10 w-full appearance-none rounded-[8px] border border-line-2 bg-white pl-3.5 pr-9 text-[13.5px] font-medium text-ink-2 outline-none transition-colors duration-150 hover:border-[#c9c2b6] focus:border-brand sm:w-auto sm:min-w-[210px]"
         style={{
           backgroundImage:
             "url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",

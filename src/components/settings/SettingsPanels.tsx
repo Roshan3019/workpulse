@@ -115,7 +115,7 @@ export function InvitePanel({
               name="email"
               type="email"
               placeholder="teammate@studio.com, or leave blank for a link"
-              className="h-10 w-full rounded-xl border border-line-2 bg-white px-3.5 text-sm outline-none focus:border-brand"
+              className="h-10 w-full rounded-xl border border-[#dcd6cc] px-3.5 text-sm outline-none focus:border-brand"
             />
           </label>
           <label className="block">
@@ -139,7 +139,7 @@ export function InvitePanel({
 
       {state?.error ? <Alert tone="error">{state.error}</Alert> : null}
       {state?.token ? (
-        <div className="rounded-xl border border-[#bfe9d6] bg-ok-soft px-3.5 py-3 text-[13px] text-[#065f46]">
+        <div className="rounded-xl border border-[#bfe9d6] bg-ok-soft px-3.5 py-3 text-[13px] text-[#2f6b4a]">
           <b>Invite ready.</b> <span className="font-normal">{state.message}</span>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <code className="rounded-lg bg-white px-2 py-1 text-[12px] break-all">{`${origin}/invite/${state.token}`}</code>
@@ -151,7 +151,7 @@ export function InvitePanel({
       ) : null}
 
       {invites.length ? (
-        <div className="divide-y divide-[#f0f1f7] rounded-xl border border-line">
+        <div className="divide-y divide-[#efece6] rounded-xl border border-line">
           {invites.map((invite) => (
             <div key={invite.id} className="flex flex-wrap items-center gap-2 px-3.5 py-2.5 text-[13px]">
               <span className="font-semibold">{invite.email ?? "Shareable link"}</span>
@@ -388,7 +388,7 @@ export function JoinLinkPanel({
         dashboard. Nobody gets in on their own.
       </p>
 
-      <div className="flex items-center gap-2 rounded-full border border-line bg-[#fafaff] py-1 pl-3.5 pr-1">
+      <div className="flex items-center gap-2 rounded-lg border border-line bg-[#fbfaf8] px-2.5 py-2">
         <input
           readOnly
           value={url}
@@ -421,7 +421,9 @@ export function JoinLinkPanel({
           New link
         </button>
         <span className="text-[12px] text-muted sm:ml-auto">
-          {pendingCount ? `${pendingCount} waiting for approval` : "No requests waiting"}
+          {pendingCount
+            ? `${pendingCount} waiting for approval`
+            : "No requests waiting"}
         </span>
       </div>
 

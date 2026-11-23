@@ -217,7 +217,7 @@ export function AvailabilityGrid({
             {([
               { value: "free", label: "Free", dot: "bg-ok", on: "bg-ok-soft text-ok-dark ring-1 ring-ok/40", ring: "ring-ok/40" },
               { value: "busy", label: "Busy", dot: "bg-bad/70", on: "bg-bad-soft text-[#991b1b] ring-1 ring-bad/30", ring: "ring-bad/30" },
-              { value: "unassigned", label: "Unassigned", dot: "bg-line-2", on: "bg-[#f1f3fa] text-ink-2 ring-1 ring-line-2", ring: "ring-line-2" },
+              { value: "unassigned", label: "Unassigned", dot: "bg-line-2", on: "bg-[#f8f6f3] text-ink-2 ring-1 ring-line-2", ring: "ring-line-2" },
             ] as const).map((option) => {
               const active = brush === option.value;
               return (
@@ -228,7 +228,7 @@ export function AvailabilityGrid({
                   aria-pressed={active}
                   title={`Paint ${option.label.toLowerCase()}`}
                   className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors duration-150 ${
-                    active ? option.on : "text-muted hover:bg-[#f1f3fa] hover:text-ink-2"
+                    active ? option.on : "text-muted hover:bg-[#f8f6f3] hover:text-ink-2"
                   }`}
                 >
                   <i className={`h-2.5 w-2.5 rounded-[3px] ${option.dot}`} aria-hidden="true" />
@@ -313,7 +313,7 @@ export function AvailabilityGrid({
           {BLOCKS.map((block) => (
             <div
               key={block.label}
-              className="text-center text-[10.5px] font-extrabold tracking-[.06em] text-faint uppercase"
+              className="text-center text-[10.5px] font-medium tracking-[.06em] text-faint uppercase"
               style={{ gridColumn: `span ${block.hours.length}` }}
             >
               {block.label}
@@ -325,7 +325,7 @@ export function AvailabilityGrid({
           {VISIBLE_HOURS.map((hour) => (
             <div
               key={hour}
-              className="border-b border-line pb-1.5 text-center text-[10px] font-semibold tabular-nums text-faint"
+              className="border-b border-line pb-1.5 text-center text-[10px] font-medium tabular-nums text-faint"
             >
               {hourLabel(hour)}
             </div>
@@ -341,21 +341,21 @@ export function AvailabilityGrid({
                 <div className="flex items-center pr-1">
                   <div>
                     <div
-                      className={`text-[10.5px] font-bold tracking-[.04em] uppercase ${
+                      className={`text-[10.5px] font-semibold tracking-[.04em] uppercase ${
                         isToday ? "text-brand" : "text-faint"
                       }`}
                     >
                       {weekdayOf(date)}
                     </div>
                     <div
-                      className={`text-[14px] leading-tight font-bold tabular-nums ${
+                      className={`text-[14px] leading-tight font-semibold tabular-nums ${
                         isToday ? "text-brand" : "text-ink"
                       }`}
                     >
                       {fromISODate(date).getDate()}
                     </div>
                     <div className="flex items-center gap-1 text-[10px] font-semibold">
-                      {count ? <span className="tabular-nums text-[#047857]">{count}h</span> : null}
+                      {count ? <span className="tabular-nums text-[#3f8f63]">{count}h</span> : null}
                       {busyCount ? <span className="tabular-nums text-[#b91c1c]">{busyCount}h</span> : null}
                       {!count && !busyCount ? <span className="text-faint">—</span> : null}
                     </div>
@@ -410,7 +410,7 @@ export function AvailabilityGrid({
             <div
               key={date}
               className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-[12.5px] ${
-                touched ? "border-line bg-white" : "border-dashed border-line-2 bg-[#fafaff]"
+                touched ? "border-line bg-white" : "border-dashed border-line-2 bg-[#fbfaf8]"
               }`}
             >
               <span className="font-medium text-ink-2">
@@ -418,7 +418,7 @@ export function AvailabilityGrid({
                 {isToday ? <span className="ml-1.5 text-[10.5px] font-semibold text-brand uppercase">today</span> : null}
               </span>
               <span className="flex items-center gap-2 text-right">
-                {counts.free ? <span className="tabular-nums text-[#047857]">{counts.free}h free</span> : null}
+                {counts.free ? <span className="tabular-nums text-[#3f8f63]">{counts.free}h free</span> : null}
                 {counts.busy ? <span className="tabular-nums text-[#b91c1c]">{counts.busy}h busy</span> : null}
                 {!touched ? <span className="text-faint">not filled in</span> : null}
               </span>
@@ -443,7 +443,7 @@ export function AvailabilityGrid({
       {/* footer totals */}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted">
         <span className="tabular-nums">
-          <b className="font-semibold text-[#047857]">{weekTotal}h</b> free
+          <b className="font-semibold text-[#3f8f63]">{weekTotal}h</b> free
         </span>
         {weekBusy ? (
           <span className="tabular-nums">

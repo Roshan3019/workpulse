@@ -113,7 +113,7 @@ export function ProgressSlider({
             className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition ${
               value === step
                 ? "border-brand bg-brand-soft text-brand-dark"
-                : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
+                : "border-line-2 bg-white text-muted hover:border-[#c9c2b6] hover:text-ink"
             }`}
           >
             {step}%

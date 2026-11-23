@@ -77,7 +77,7 @@ export function TaskDialog({
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Edit task"
-          className={triggerClassName ?? "grid h-9 w-9 place-items-center rounded-lg text-muted transition hover:bg-[#f1f3fa] hover:text-ink"}
+          className={triggerClassName ?? "grid h-9 w-9 place-items-center rounded-lg text-muted transition hover:bg-[#f8f6f3] hover:text-ink"}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 20h9" />
@@ -164,11 +164,11 @@ export function TaskDialog({
           </div>
 
           {/* ---- timing: start → due, with a live countdown ---- */}
-          <div className="rounded-xl border border-line bg-[#fafaff] p-3.5">
+          <div className="rounded-xl border border-line bg-[#fbfaf8] p-3.5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
               <span className="label !mb-0">Timing</span>
               {timingSummary ? (
-                <span className="rounded-full border border-brand-line bg-white px-2.5 py-0.5 text-[11.5px] font-bold text-brand-dark">
+                <span className="rounded-md border border-brand-line bg-white px-2 py-0.5 text-[11.5px] font-semibold text-brand-dark">
                   {timingSummary}
                 </span>
               ) : null}
@@ -213,7 +213,7 @@ export function TaskDialog({
                 row never wraps mid-group and the chips keep one height. */}
             <div className="mt-3 space-y-2">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="w-14 shrink-0 text-[11px] font-bold tracking-[.06em] text-faint uppercase">
+                <span className="w-14 shrink-0 text-[10.5px] font-medium tracking-[.06em] text-faint uppercase">
                   Due in
                 </span>
                 {[
@@ -230,10 +230,10 @@ export function TaskDialog({
                       type="button"
                       aria-pressed={active}
                       onClick={() => setDueDate(addDays(todayISO(), option.days))}
-                      className={`chip h-8 rounded-full border px-3 text-[12px] font-semibold transition ${
+                      className={`chip h-8 rounded-[8px] border px-2.5 text-[12px] font-medium transition ${
                         active
-                          ? "border-brand bg-brand text-white shadow-[0_3px_10px_rgba(79,70,229,.28)]"
-                          : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
+                          ? "border-brand bg-brand text-white"
+                          : "border-line-2 bg-white text-muted hover:border-[#c9c2b6] hover:text-ink"
                       }`}
                     >
                       {option.label}
@@ -243,7 +243,7 @@ export function TaskDialog({
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="w-14 shrink-0 text-[11px] font-bold tracking-[.06em] text-faint uppercase">
+                <span className="w-14 shrink-0 text-[10.5px] font-medium tracking-[.06em] text-faint uppercase">
                   Time
                 </span>
                 {TIME_PRESETS.map((preset) => {
@@ -254,10 +254,10 @@ export function TaskDialog({
                       type="button"
                       aria-pressed={active}
                       onClick={() => setDueTime(preset.value)}
-                      className={`chip h-8 rounded-full border px-3 text-[12px] font-semibold transition ${
+                      className={`chip h-8 rounded-[8px] border px-2.5 text-[12px] font-medium transition ${
                         active
-                          ? "border-brand bg-brand text-white shadow-[0_3px_10px_rgba(79,70,229,.28)]"
-                          : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
+                          ? "border-brand bg-brand text-white"
+                          : "border-line-2 bg-white text-muted hover:border-[#c9c2b6] hover:text-ink"
                       }`}
                     >
                       {preset.label.split(" · ")[1]}

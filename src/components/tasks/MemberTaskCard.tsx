@@ -57,7 +57,7 @@ export function MemberTaskCard({ task }: { task: Task }) {
         </span>
       </div>
 
-      <h3 className="mt-2.5 text-[19px] font-extrabold">{task.title}</h3>
+      <h3 className="mt-2.5 text-[19px] font-semibold">{task.title}</h3>
       {task.description ? (
         <p className="mt-1 text-[13.5px] leading-relaxed break-words text-muted">{task.description}</p>
       ) : null}

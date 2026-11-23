@@ -29,7 +29,7 @@ export function GoogleButton({ label = "Continue with Google", next = "/app" }: 
   return (
     <a
       href={href}
-      className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-line-2 bg-white px-4 text-sm font-semibold text-ink-2 transition hover:border-[#c7ccdf] hover:bg-[#fafaff]"
+      className="flex h-11 w-full items-center justify-center gap-3 rounded-[8px] border border-line-2 bg-white px-4 text-[13.5px] font-medium transition-colors duration-150 hover:bg-[#fbfaf8]"
     >
       <GoogleIcon />
       {label}

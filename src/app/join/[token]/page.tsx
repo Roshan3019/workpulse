@@ -30,7 +30,7 @@ export default async function JoinPage({
   if (!link) {
     return (
       <Shell>
-        <h1 className="text-[23px] font-extrabold tracking-[-0.02em] text-ink">
+        <h1 className="text-[23px] font-semibold tracking-[-0.02em] text-ink">
           This link is no longer valid
         </h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
@@ -51,7 +51,7 @@ export default async function JoinPage({
   if (!link.enabled) {
     return (
       <Shell>
-        <h1 className="text-[23px] font-extrabold tracking-[-0.02em] text-ink">Joining is paused</h1>
+        <h1 className="text-[23px] font-semibold tracking-[-0.02em] text-ink">Joining is paused</h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
           {link.orgName} isn&apos;t accepting new people through this link right now.
         </p>
@@ -77,7 +77,7 @@ export default async function JoinPage({
         </div>
       ) : null}
 
-      <h1 className="text-[23px] font-extrabold tracking-[-0.02em] text-ink">
+      <h1 className="text-[23px] font-semibold tracking-[-0.02em] text-ink">
         Request to join {link.orgName}
       </h1>
       <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
@@ -86,7 +86,7 @@ export default async function JoinPage({
       </p>
 
       {alreadyIn ? (
-        <div className="mt-6 rounded-lg border border-line bg-[#fafaff] px-3.5 py-3 text-[13px] text-ink-2">
+        <div className="mt-6 rounded-lg border border-line bg-[#fbfaf8] px-3.5 py-3 text-[13px] text-ink-2">
           You&apos;re already in {link.orgName}.{" "}
           <Link href="/app" className="font-medium text-ink underline">
             Open the dashboard
@@ -94,7 +94,7 @@ export default async function JoinPage({
           .
         </div>
       ) : pending ? (
-        <div className="mt-6 rounded-lg border border-line bg-[#fafaff] px-3.5 py-3">
+        <div className="mt-6 rounded-lg border border-line bg-[#fbfaf8] px-3.5 py-3">
           <p className="text-[13px] font-medium text-ink">Your request is waiting</p>
           <p className="mt-0.5 text-[12.5px] text-muted">
             Sent {new Date(pending.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}. An
@@ -172,7 +172,7 @@ export default async function JoinPage({
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f6f7fb] px-4 py-10">
+    <main className="grid min-h-screen place-items-center bg-[#faf9f6] px-4 py-10">
       <div className="w-full max-w-[440px]">
         <div className="mb-7 flex justify-center">
           <Logo href="/" />

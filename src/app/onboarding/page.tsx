@@ -72,7 +72,7 @@ export default async function OnboardingPage() {
         <main className="mx-auto max-w-lg px-5 py-10">
           <div className="card p-6 sm:p-8">
             <p className="label">Step 1 of 1</p>
-            <h1 className="mt-2 text-[26px] font-extrabold tracking-[-0.02em]">Name your workspace</h1>
+            <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.02em]">Name your workspace</h1>
             <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
               This is your team&apos;s home in WorkPulse. You&apos;ll be the owner. You can rename it later.
             </p>
@@ -122,7 +122,7 @@ export default async function OnboardingPage() {
 
       <main className="mx-auto max-w-3xl px-5 py-6 sm:py-10">
         <Badge tone="indigo">You&apos;re in</Badge>
-        <h1 className="mt-4 text-[30px] leading-tight font-extrabold tracking-[-0.02em] sm:text-[38px]">
+        <h1 className="mt-4 text-[30px] leading-tight font-semibold tracking-[-0.02em] sm:text-[38px]">
           Welcome, {firstName}. Here&apos;s the 60-second tour.
         </h1>
         <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed text-muted">
@@ -141,7 +141,7 @@ export default async function OnboardingPage() {
                 <span className="text-2xl">{item.icon}</span>
                 <span className="text-[11px] font-bold tracking-wide text-faint">0{i + 1}</span>
               </div>
-              <h2 className="mt-3 text-[15.5px] font-extrabold">{item.title}</h2>
+              <h2 className="mt-3 text-[15.5px] font-semibold">{item.title}</h2>
               <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-muted">{item.body}</p>
               <span className="mt-3 text-[13px] font-bold text-brand group-hover:underline">{item.cta} →</span>
             </Link>

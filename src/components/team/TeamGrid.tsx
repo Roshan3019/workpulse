@@ -62,7 +62,7 @@ export function TeamGrid({
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="truncate text-[16px] font-extrabold">{member.profile.fullName ?? "Unnamed"}</h3>
+                    <h3 className="truncate text-[16px] font-semibold">{member.profile.fullName ?? "Unnamed"}</h3>
                     {isSelf ? <Badge tone="indigo">You</Badge> : null}
                   </div>
                   <p className="truncate text-[12.5px] text-muted">{member.profile.email}</p>
@@ -116,7 +116,7 @@ export function TeamGrid({
                   defaultValue={member.role}
                   disabled={!canChangeRole || pending || busyId === member.id}
                   onChange={(event) => run(member.id, () => changeRoleAction(member.id, event.target.value))}
-                  className="mt-1.5 w-full rounded-xl border border-line-2 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-brand disabled:cursor-not-allowed disabled:bg-[#f6f7fb] disabled:text-faint"
+                  className="mt-1.5 w-full rounded-xl border border-line-2 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-brand disabled:cursor-not-allowed disabled:bg-[#faf9f6] disabled:text-faint"
                 >
                   <option value="member">Member: own tasks and availability</option>
                   <option value="admin">Admin: manages people and tasks</option>
