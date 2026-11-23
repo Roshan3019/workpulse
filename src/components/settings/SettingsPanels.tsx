@@ -108,18 +108,28 @@ export function InvitePanel({
       </div>
 
       {canInvite ? (
-        <form action={action} className="grid gap-2.5 sm:grid-cols-[1fr_180px_auto]">
-          <input
-            name="email"
-            type="email"
-            placeholder="teammate@studio.com  ·  leave blank for a shareable link"
-            className="rounded-xl border border-line-2 border-[#dcd6cc] px-3.5 py-3 text-sm outline-none focus:border-brand"
-          />
-          <select name="role" defaultValue="member" className="rounded-xl border border-line-2 px-3.5 py-3 text-sm font-semibold outline-none focus:border-brand">
-            <option value="member">Member</option>
-            <option value="admin">Admin</option>
-          </select>
-          <button type="submit" disabled={pending || full} className="btn-primary">
+        <form action={action} className="grid gap-2.5 sm:grid-cols-[1fr_150px_auto]">
+          <label className="block">
+            <span className="sr-only">Teammate email</span>
+            <input
+              name="email"
+              type="email"
+              placeholder="teammate@studio.com, or leave blank for a link"
+              className="h-10 w-full rounded-xl border border-line-2 bg-white px-3.5 text-sm outline-none focus:border-brand"
+            />
+          </label>
+          <label className="block">
+            <span className="sr-only">Role</span>
+            <select
+              name="role"
+              defaultValue="member"
+              className="h-10 w-full rounded-xl border border-line-2 bg-white px-3.5 text-sm font-semibold outline-none focus:border-brand"
+            >
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <button type="submit" disabled={pending || full} className="btn-primary w-full sm:w-auto">
             {pending ? "Creating…" : "Create invite"}
           </button>
         </form>
@@ -141,7 +151,7 @@ export function InvitePanel({
       ) : null}
 
       {invites.length ? (
-        <div className="divide-y divide-[#efece6] rounded-xl border border-line">
+        <div className="divide-y divide-[#f0f1f7] rounded-xl border border-line">
           {invites.map((invite) => (
             <div key={invite.id} className="flex flex-wrap items-center gap-2 px-3.5 py-2.5 text-[13px]">
               <span className="font-semibold">{invite.email ?? "Shareable link"}</span>
@@ -149,7 +159,7 @@ export function InvitePanel({
               <span className="text-[12px] text-faint">
                 expires {new Date(invite.expiresAt).toLocaleDateString()}
               </span>
-              <span className="ml-auto flex items-center gap-2">
+              <span className="flex w-full items-center gap-2 border-t border-line/70 pt-2 sm:ml-auto sm:w-auto sm:border-0 sm:pt-0">
                 <button type="button" onClick={() => copy(invite.token)} className="text-[12.5px] font-bold text-brand">
                   {copied === invite.token ? "Copied ✓" : "Copy link"}
                 </button>
@@ -378,12 +388,12 @@ export function JoinLinkPanel({
         dashboard. Nobody gets in on their own.
       </p>
 
-      <div className="flex items-center gap-2 rounded-lg border border-line bg-[#fbfaf8] px-2.5 py-2">
+      <div className="flex items-center gap-2 rounded-full border border-line bg-[#fafaff] py-1 pl-3.5 pr-1">
         <input
           readOnly
           value={url}
           onFocus={(event) => event.currentTarget.select()}
-          className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink-2 outline-none"
+          className="h-8 min-w-0 flex-1 bg-transparent text-[12.5px] text-ink-2 outline-none"
           aria-label="Join link"
         />
         <button type="button" onClick={copy} className="btn-outline btn-sm shrink-0">
@@ -410,10 +420,8 @@ export function JoinLinkPanel({
         >
           New link
         </button>
-        <span className="ml-auto text-[12px] text-muted">
-          {pendingCount
-            ? `${pendingCount} waiting for approval`
-            : "No requests waiting"}
+        <span className="text-[12px] text-muted sm:ml-auto">
+          {pendingCount ? `${pendingCount} waiting for approval` : "No requests waiting"}
         </span>
       </div>
 

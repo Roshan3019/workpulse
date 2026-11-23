@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { OverallSlots } from "@/components/dashboard/OverallSlots";
+import { TeamSlotGrid } from "@/components/dashboard/TeamSlotGrid";
 import { TeamSwitcher } from "@/components/dashboard/TeamSwitcher";
 import { JoinRequestInbox } from "@/components/team/JoinRequestInbox";
 import { WorkloadList } from "@/components/dashboard/WorkloadList";
@@ -81,10 +82,54 @@ export default async function DashboardPage({
     .slice(0, 5);
 
   const stats = [
-    { label: "Freelancers", value: freelancers.length, note: selectedTeam ? `In ${selectedTeam.name}` : "On the team" },
-    { label: "Active tasks", value: openTasks.length, note: "Pending + in progress" },
-    { label: "Estimated hours", value: Math.round(totalHours), note: "Across active tasks" },
-    { label: "Completed", value: doneCount, note: "All time" },
+    {
+      label: "Freelancers",
+      value: freelancers.length,
+      note: selectedTeam ? `In ${selectedTeam.name}` : "On the team",
+      tint: "bg-brand-soft text-brand",
+      icon: (
+        <>
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        </>
+      ),
+    },
+    {
+      label: "Active tasks",
+      value: openTasks.length,
+      note: "Pending + in progress",
+      tint: "bg-warn-soft text-warn-dark",
+      icon: (
+        <>
+          <path d="M9 11l3 3L22 4" />
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+        </>
+      ),
+    },
+    {
+      label: "Estimated hours",
+      value: Math.round(totalHours),
+      note: "Across active tasks",
+      tint: "bg-[#eaf6fd] text-[#0369a1]",
+      icon: (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3.5 2" />
+        </>
+      ),
+    },
+    {
+      label: "Completed",
+      value: doneCount,
+      note: "All time",
+      tint: "bg-ok-soft text-ok-dark",
+      icon: (
+        <>
+          <path d="M20 6 9 17l-5-5" />
+        </>
+      ),
+    },
   ];
 
   return (
@@ -95,7 +140,7 @@ export default async function DashboardPage({
           <p className="lede">
             {selectedTeam
               ? `People, hours and deadlines in ${selectedTeam.name}.`
-              : "Who's free, who's slammed, and what's due next."}
+              : "Who's free, who's slammed, and what's due next, at a glance."}
           </p>
         </div>
         <TaskDialog members={members} teams={teams} />
@@ -108,17 +153,30 @@ export default async function DashboardPage({
       {/* Only admins land on this page, so anyone waiting is theirs to approve. */}
       <JoinRequestInbox requests={joinRequests} />
 
-      {/* Figures, not four competing tiles. A single ruled row reads at a glance. */}
-      <div className="grid grid-cols-2 divide-line rounded-[12px] border border-line bg-white sm:grid-cols-4 sm:divide-x">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
-          <div key={stat.label} className="px-4 py-3.5">
-            <div className="text-[11.5px] font-medium text-muted">{stat.label}</div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-[22px] leading-none font-semibold tabular-nums tracking-[-0.02em]">
-                {stat.value}
+          <div key={stat.label} className="card flex flex-col p-4 sm:p-5">
+            <div className="flex items-center gap-2.5">
+              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${stat.tint}`}>
+                <svg
+                  width="17"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  {stat.icon}
+                </svg>
               </span>
-              <span className="truncate text-[11px] text-faint">{stat.note}</span>
+              <span className="label truncate">{stat.label}</span>
             </div>
+            <div className="mt-3 text-[28px] leading-none font-extrabold tabular-nums tracking-[-0.02em]">
+              {stat.value}
+            </div>
+            <div className="mt-1.5 truncate text-[12px] text-faint">{stat.note}</div>
           </div>
         ))}
       </div>
@@ -126,6 +184,14 @@ export default async function DashboardPage({
       <WorkloadList members={freelancers} tasks={tasks} />
 
       <OverallSlots members={freelancers} availability={freeHours} dates={dates} />
+
+      {/* The client's ask: the whole team's week on one screen, folded together. */}
+      <TeamSlotGrid
+        members={freelancers}
+        availability={availability}
+        dates={dates}
+        title={selectedTeam ? `${selectedTeam.name} slots` : "Team slots"}
+      />
 
       <Section
         title="Next deadlines"
@@ -139,7 +205,7 @@ export default async function DashboardPage({
         {upcoming.length === 0 ? (
           <EmptyState title="Nothing due" hint="Assign a task and it will show up here." />
         ) : (
-          <ul className="divide-y divide-[#efece6]">
+          <ul className="divide-y divide-[#f0f1f7]">
             {upcoming.map((task) => {
               const assignee = members.find((m) => m.userId === task.assigneeId);
               const overdue = dueDateOf(task.deadline!, task.dueTime).getTime() < Date.now();

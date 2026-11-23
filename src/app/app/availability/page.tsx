@@ -1,10 +1,11 @@
 import { AvailabilityGrid } from "@/components/availability/AvailabilityGrid";
+import { MemberPicker } from "@/components/availability/MemberPicker";
 import { Avatar, Badge, EmptyState, Section } from "@/components/ui";
 import { getStore } from "@/lib/data";
 import { orgMembers } from "@/lib/data/request-cache";
-import { nextDatesIn, shortDate, weekdayOf } from "@/lib/dates";
+import { nextDatesIn, shortDate } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
-import { isAdminRole, type AvailabilityStates, type WeeklyDefault } from "@/lib/types";
+import { isAdminRole, type AvailabilityStates } from "@/lib/types";
 import { applyWeeklyDefault, countStates } from "@/lib/availability";
 import { WeeklyDefaultEditor } from "@/components/availability/WeeklyDefaultEditor";
 
@@ -28,182 +29,91 @@ export default async function AvailabilityPage({
 
   /* ------------------------------ ADMIN VIEW ------------------------------- */
   /*
-   * The client asked for one screen where an admin can read every member's
-   * free/busy at a glance. So this is a roster, not a picker: each person is a
-   * row with 7 day-cells, colour-coded, and clicking a name opens their full
-   * week below.
+   * The shape the client asked for: pick a person, read their whole week.
+   * Every day still honours that person's usual-week default and their
+   * free/busy/unassigned states, so nothing was lost in going back to this.
    */
   if (admin) {
     const [members, params] = await Promise.all([orgMembers(orgId), searchParams]);
     const freelancers = members.filter((m) => m.role === "member");
-    const userIds = freelancers.map((m) => m.userId);
-
-    /*
-     * Admins read the same fallback the member sees: stored days win, and any
-     * day without a row inherits that person's usual week. Otherwise a member
-     * with a default saved would look empty here while looking full to
-     * themselves — the one thing this screen must never do.
-     */
-    const stored: Record<string, AvailabilityStates> = userIds.length
-      ? await store.getAvailabilityStates(orgId, userIds, dates)
-      : {};
-    const defaults: (WeeklyDefault | null)[] = userIds.length
-      ? await Promise.all(userIds.map((id) => store.getWeeklyDefault(orgId, id)))
-      : [];
-    const availability: Record<string, AvailabilityStates> = Object.fromEntries(
-      userIds.map((id, index) => [
-        id,
-        applyWeeklyDefault(defaults[index] ?? null, dates.slice(0, 7), stored[id] ?? {}).states,
-      ]),
-    );
-
     const selectedId =
-      params.member && freelancers.some((m) => m.userId === params.member) ? params.member : "";
+      params.member && freelancers.some((m) => m.userId === params.member)
+        ? params.member
+        : freelancers[0]?.userId ?? "";
+
     const selected = freelancers.find((m) => m.userId === selectedId);
-    const week = dates.slice(0, 7);
-    const weekLabel = `${shortDate(week[0])} – ${shortDate(week[week.length - 1])}`;
+
+    const stored: Record<string, AvailabilityStates> = selectedId
+      ? await store.getAvailabilityStates(orgId, [selectedId], dates)
+      : {};
+    const weeklyDefault = selectedId ? await store.getWeeklyDefault(orgId, selectedId) : null;
+
+    // Stored days win; days with no row inherit that person's usual week.
+    const { states: shown } = applyWeeklyDefault(
+      weeklyDefault,
+      dates.slice(0, 7),
+      stored[selectedId] ?? {},
+    );
+    const freeThisWeek = dates
+      .slice(0, 7)
+      .reduce((sum, d) => sum + countStates(shown[d] ?? {}).free, 0);
 
     return (
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="h1">Availability</h1>
-            <p className="lede">Who has room this week, and who is booked out.</p>
+      <div className="space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="h1">Who&apos;s free when</h1>
+            <p className="lede">Green means free, red means booked. Pick a person to see their week.</p>
           </div>
-          <span className="text-[12px] font-medium text-faint tabular-nums">{weekLabel}</span>
+          {freelancers.length > 1 ? (
+            <MemberPicker members={freelancers} selected={selectedId} />
+          ) : null}
         </div>
 
-        {!freelancers.length ? (
+        <div className="flex items-start gap-2 rounded-xl border border-line bg-white px-3.5 py-2.5 text-[12.5px] leading-relaxed text-muted">
+          <span aria-hidden="true">👁</span>
+          <span>
+            <b className="text-ink-2">View only.</b> Teammates keep their own calendar up to date;
+            admins read it here.
+          </span>
+        </div>
+
+        {!selected ? (
           <div className="card">
             <EmptyState
               title="No freelancers yet"
-              hint="Availability appears once people join your studio."
+              hint="Availability appears here once you invite members to your team."
+              icon="📅"
             />
           </div>
         ) : (
-          <>
-            <div className="overflow-hidden rounded-xl border border-line bg-white">
-              {/* header row */}
-              <div className="hidden items-center gap-3 border-b border-line bg-[#fcfcfe] px-4 py-2.5 text-[11px] font-medium tracking-[.04em] text-faint uppercase sm:flex">
-                <span className="flex-1">Person</span>
-                <span className="flex w-[266px] shrink-0 items-center justify-between">
-                  {week.map((date) => (
-                    <span key={date} className="w-[34px] text-center">
-                      {weekdayOf(date).slice(0, 2)}
-                    </span>
-                  ))}
-                </span>
-                <span className="w-[72px] shrink-0 text-right">Free</span>
+          <Section
+            title={selected.profile.fullName ?? selected.profile.email}
+            subtitle={`${freeThisWeek}h free over the next 7 days`}
+            action={
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge tone="indigo">
+                  {shortDate(dates[0])} – {shortDate(dates[dates.length - 1])}
+                </Badge>
+                <Avatar
+                  id={selected.userId}
+                  name={selected.profile.fullName}
+                  email={selected.profile.email}
+                  src={selected.profile.avatarUrl}
+                  size={38}
+                />
               </div>
-
-              {freelancers.map((m) => {
-                const days = availability[m.userId] ?? {};
-                const totalFree = week.reduce((n, d) => n + countStates(days[d] ?? {}).free, 0);
-                const open = selectedId === m.userId;
-                return (
-                  <div
-                    key={m.userId}
-                    className={`border-b border-line last:border-b-0 ${open ? "bg-[#fbfaf8]" : ""}`}
-                  >
-                    <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 sm:flex-nowrap">
-                      <a
-                        href={`/app/availability?member=${m.userId}`}
-                        className="flex min-w-0 flex-1 items-center gap-2.5"
-                      >
-                        <Avatar
-                          id={m.userId}
-                          name={m.profile.fullName}
-                          email={m.profile.email}
-                          src={m.profile.avatarUrl}
-                          size={28}
-                        />
-                        <span className="truncate text-[13px] font-medium text-ink">
-                          {m.profile.fullName ?? m.profile.email}
-                        </span>
-                      </a>
-
-                      <span className="flex w-full items-center justify-between sm:w-[266px] sm:shrink-0">
-                        {week.map((date) => {
-                          const day = days[date] ?? {};
-                          const c = countStates(day);
-                          const total = c.free + c.busy;
-                          const freePct = total ? Math.round((c.free / total) * 100) : 0;
-                          return (
-                            <span
-                              key={date}
-                              title={`${weekdayOf(date)}: ${c.free}h free, ${c.busy}h busy, ${c.unassigned}h unassigned`}
-                              className={`relative flex h-8 w-[34px] overflow-hidden rounded-[5px] border ${
-                                total === 0
-                                  ? "items-center justify-center border-dashed border-line-2 bg-[#fbfaf8]"
-                                  : "flex-col justify-end border-line"
-                              }`}
-                            >
-                              {total === 0 ? (
-                                <span className="text-[11px] leading-none text-faint">–</span>
-                              ) : (
-                                <>
-                                  {/* One bar, two honest segments: the share of the day spoken for. */}
-                                  <i
-                                    className="absolute inset-x-0 top-0 bg-bad/35"
-                                    style={{ height: `${100 - freePct}%` }}
-                                    aria-hidden="true"
-                                  />
-                                  <i
-                                    className="absolute inset-x-0 bottom-0 bg-ok/55"
-                                    style={{ height: `${freePct}%` }}
-                                    aria-hidden="true"
-                                  />
-                                </>
-                              )}
-                            </span>
-                          );
-                        })}
-                      </span>
-
-                      <span className="flex w-[72px] shrink-0 items-center justify-end gap-1.5">
-                        <span className="text-[12.5px] font-medium tabular-nums text-ink-2">
-                          {totalFree}h
-                        </span>
-                        <svg
-                          viewBox="0 0 12 12"
-                          aria-hidden="true"
-                          className={`h-2.5 w-2.5 shrink-0 text-faint transition-transform duration-150 ${
-                            open ? "rotate-90" : ""
-                          }`}
-                        >
-                          <path
-                            d="M4.5 2.5 8 6l-3.5 3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </span>
-                    </div>
-
-                    {open ? (
-                      <div className="border-t border-line bg-white px-4 py-4">
-                        <AvailabilityGrid
-                          key={m.userId}
-                          mode="read"
-                          dates={dates}
-                          today={today}
-                          initial={days}
-                          emptyHint="This teammate edits their own calendar."
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-            <p className="px-1 text-[12px] text-faint">
-              The bar fills with the share of each day that is free, and empties as it books up. Open
-              a person to read their whole week.
-            </p>
-          </>
+            }
+          >
+            <AvailabilityGrid
+              key={selectedId}
+              mode="read"
+              dates={dates}
+              today={today}
+              initial={shown}
+              emptyHint="this teammate edits their own calendar."
+            />
+          </Section>
         )}
       </div>
     );

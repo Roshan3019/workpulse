@@ -21,7 +21,7 @@ export function WorkloadList({ members, tasks }: { members: Member[]; tasks: Tas
       {rows.length === 0 ? (
         <EmptyState title="No freelancers yet" hint="Invite your team from Settings and they'll appear here instantly." />
       ) : (
-        <div className="divide-y divide-[#efece6]">
+        <div className="divide-y divide-[#f0f1f7]">
           {rows.map((row) => {
             const label = UTILISATION_LABEL[row.state];
             const tone = UTILISATION_TONE[row.state];
@@ -46,7 +46,7 @@ export function WorkloadList({ members, tasks }: { members: Member[]; tasks: Tas
                 <div>
                   <div className="mb-1.5 flex justify-between text-[12px] text-muted">
                     <span>
-                      <b className="font-semibold text-ink-2">{row.assignedHours}h</b> assigned
+                      <b className="font-extrabold text-ink-2">{row.assignedHours}h</b> assigned
                       {row.openTasks ? ` · ${row.openTasks} task${row.openTasks === 1 ? "" : "s"}` : ""}
                     </span>
                     <span>{row.capacity}h/wk capacity</span>
@@ -56,7 +56,7 @@ export function WorkloadList({ members, tasks }: { members: Member[]; tasks: Tas
 
                 <div className="flex items-center gap-2.5 md:justify-end">
                   <Badge tone={tone}>{label}</Badge>
-                  <span className="text-[14px] font-semibold tabular-nums">{row.utilisation}%</span>
+                  <span className="text-[14px] font-extrabold tabular-nums">{row.utilisation}%</span>
                 </div>
               </div>
             );

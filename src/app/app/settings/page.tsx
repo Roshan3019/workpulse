@@ -84,11 +84,11 @@ export default async function SettingsPage() {
       ) : (
         <Section title="Workspace" subtitle="Your team details. Ask an admin if something needs changing.">
           <dl className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-line bg-[#fbfaf8] px-4 py-3">
+            <div className="rounded-xl border border-line bg-[#fafaff] px-4 py-3">
               <dt className="label">Team</dt>
               <dd className="mt-1 text-[14px] font-bold">{session.organization.name}</dd>
             </div>
-            <div className="rounded-xl border border-line bg-[#fbfaf8] px-4 py-3">
+            <div className="rounded-xl border border-line bg-[#fafaff] px-4 py-3">
               <dt className="label">Plan</dt>
               <dd className="mt-1 text-[14px] font-bold capitalize">
                 {session.organization.plan} · {members.length}/{session.organization.seatLimit} seats
@@ -103,19 +103,19 @@ export default async function SettingsPage() {
 
       <Section title="Account" subtitle="Your personal details in this workspace.">
         <dl className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-line bg-[#fbfaf8] px-4 py-3">
+          <div className="rounded-xl border border-line bg-[#fafaff] px-4 py-3">
             <dt className="label">Name</dt>
             <dd className="mt-1 text-[14px] font-bold">{session.user.fullName ?? "—"}</dd>
           </div>
-          <div className="rounded-xl border border-line bg-[#fbfaf8] px-4 py-3">
+          <div className="rounded-xl border border-line bg-[#fafaff] px-4 py-3">
             <dt className="label">Email</dt>
             <dd className="mt-1 truncate text-[14px] font-bold">{session.user.email}</dd>
           </div>
-          <div className="rounded-xl border border-line bg-[#fbfaf8] px-4 py-3">
+          <div className="rounded-xl border border-line bg-[#fafaff] px-4 py-3">
             <dt className="label">Role</dt>
             <dd className="mt-1 text-[14px] font-bold capitalize">{session.membership.role}</dd>
           </div>
-          <div className="rounded-xl border border-line bg-[#fbfaf8] px-4 py-3">
+          <div className="rounded-xl border border-line bg-[#fafaff] px-4 py-3">
             <dt className="label">Weekly capacity</dt>
             <dd className="mt-1 text-[14px] font-bold">{session.membership.capacity}h</dd>
           </div>

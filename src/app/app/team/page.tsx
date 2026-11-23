@@ -42,7 +42,9 @@ export default async function TeamPage() {
             {adminCount === 1 ? "" : "s"}. Plan covers {session.organization.seatLimit} seats.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Full width on a phone, side by side from sm up, so the pair never
+            squeezes the title on a narrow screen. */}
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
           <Link href="/app/teams" className="btn-outline">
             Teams
           </Link>

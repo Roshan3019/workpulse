@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 export function LogoMark({ size = 40 }: { size?: number }) {
   return (
     <span
-      className="grid place-items-center rounded-[9px] bg-ink"
+      className="grid place-items-center rounded-[13px] bg-gradient-to-br from-[#6366f1] to-[#4f46e5] shadow-[0_4px_12px_rgba(79,70,229,.35)]"
       style={{ width: size, height: size }}
     >
       <svg
@@ -21,7 +21,7 @@ export function LogoMark({ size = 40 }: { size?: number }) {
         strokeLinejoin="round"
         aria-hidden="true"
       >
-        <path d="M3 12h4l2.5-6 5 12 2.5-6h4" strokeWidth="2" />
+        <path d="M2 12h4l3-8 4 16 3-8h6" />
       </svg>
     </span>
   );
@@ -32,9 +32,9 @@ export function Logo({ subtitle, href = "/" }: { subtitle?: string; href?: strin
     <Link href={href} className="flex items-center gap-2.5">
       <LogoMark />
       <span className="leading-tight">
-        <span className="block text-[17px] font-semibold tracking-[-0.025em]">WorkPulse</span>
+        <span className="block text-[19px] font-extrabold tracking-[-0.02em]">WorkPulse</span>
         {subtitle ? (
-          <span className="block text-[11px] font-normal text-faint">{subtitle}</span>
+          <span className="block text-[10px] font-bold tracking-[.14em] text-faint uppercase">{subtitle}</span>
         ) : null}
       </span>
     </Link>
@@ -44,8 +44,7 @@ export function Logo({ subtitle, href = "/" }: { subtitle?: string; href?: strin
 /* -------------------------------------------------------------------------- */
 /* Avatar                                                                     */
 /* -------------------------------------------------------------------------- */
-/* Muted earth tones — eight hues that sit together without looking like a chart. */
-const COLORS = ["#8C5A3C", "#4F7A63", "#3F6C82", "#8A6A34", "#7A4F63", "#5A5F8A", "#5E7A45", "#9A5540"];
+const COLORS = ["#4F46E5", "#0EA5E9", "#10B981", "#F59E0B", "#EC4899", "#8B5CF6", "#14B8A6", "#F97316"];
 
 export function colorFor(seed: string): string {
   let hash = 0;
@@ -88,7 +87,7 @@ export function Avatar({
   }
   return (
     <span
-      className="grid shrink-0 place-items-center rounded-full font-semibold text-white"
+      className="grid shrink-0 place-items-center rounded-full font-extrabold text-white"
       style={{ width: size, height: size, background: colorFor(id), fontSize: size * 0.38 }}
       aria-hidden="true"
     >
@@ -134,7 +133,7 @@ export function Section({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="h2">{title}</h2>
-          {subtitle ? <p className="mt-0.5 text-[12.5px] text-muted">{subtitle}</p> : null}
+          {subtitle ? <p className="mt-1 text-[13.5px] text-muted">{subtitle}</p> : null}
         </div>
         {action}
       </div>
@@ -143,16 +142,17 @@ export function Section({
   );
 }
 
-/**
- * Empty states used to be a big emoji over bold text. A plain mark and one
- * sentence reads calmer and doesn't shout at someone who just got here.
- */
-export function EmptyState({ title, hint }: { title: string; hint?: string; icon?: string }) {
+export function EmptyState({ title, hint, icon }: { title: string; hint?: string; icon?: string }) {
   return (
-    <div className="py-10 text-center">
-      <div className="mx-auto mb-3 h-px w-8 bg-line-2" aria-hidden="true" />
-      <p className="text-[13.5px] font-medium text-ink-2">{title}</p>
-      {hint ? <p className="mx-auto mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted">{hint}</p> : null}
+    <div className="px-4 py-12 text-center">
+      <div
+        className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-2xl border border-line bg-[#f7f8fc] text-[17px]"
+        aria-hidden="true"
+      >
+        {icon ?? "◦"}
+      </div>
+      <p className="text-[14px] font-bold text-ink-2">{title}</p>
+      {hint ? <p className="mx-auto mt-1 max-w-sm text-[13px] leading-relaxed text-muted">{hint}</p> : null}
     </div>
   );
 }

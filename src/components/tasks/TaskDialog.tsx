@@ -56,6 +56,16 @@ export function TaskDialog({
     setDueTime(task?.dueTime ?? "18:00");
   }, [open, task?.startDate, task?.deadline, task?.dueTime]);
 
+  /*
+   * The preset chips highlight by *distance from today*, never by comparing
+   * against a date computed during render. Two clocks in one render is what
+   * made "Tomorrow" stay lit while the date field said something else.
+   */
+  const dueOffset = Math.round(
+    (new Date(`${dueDate}T00:00:00`).getTime() - new Date(`${todayISO()}T00:00:00`).getTime()) /
+      86_400_000,
+  );
+
   const timingSummary = dueDate
     ? `${countdownLabel(dueDate, dueTime)}${startDate ? ` · ${Math.max(0, Math.round((new Date(dueDate).getTime() - new Date(startDate).getTime()) / 86_400_000))} day window` : ""}`
     : null;
@@ -67,7 +77,7 @@ export function TaskDialog({
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Edit task"
-          className={triggerClassName ?? "grid h-9 w-9 place-items-center rounded-lg text-muted transition hover:bg-[#f2efea] hover:text-ink"}
+          className={triggerClassName ?? "grid h-9 w-9 place-items-center rounded-lg text-muted transition hover:bg-[#f1f3fa] hover:text-ink"}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 20h9" />
@@ -154,11 +164,11 @@ export function TaskDialog({
           </div>
 
           {/* ---- timing: start → due, with a live countdown ---- */}
-          <div className="rounded-xl border border-line bg-[#fbfaf8] p-3.5">
-            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+          <div className="rounded-xl border border-line bg-[#fafaff] p-3.5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
               <span className="label !mb-0">Timing</span>
               {timingSummary ? (
-                <span className="rounded-full bg-white px-2.5 py-1 text-[11.5px] font-bold text-brand-dark">
+                <span className="rounded-full border border-brand-line bg-white px-2.5 py-0.5 text-[11.5px] font-bold text-brand-dark">
                   {timingSummary}
                 </span>
               ) : null}
@@ -198,43 +208,63 @@ export function TaskDialog({
               </div>
             </div>
 
-            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-faint">Due in:</span>
-              {[
-                { label: "Today", days: 0 },
-                { label: "Tomorrow", days: 1 },
-                { label: "3 days", days: 3 },
-                { label: "1 week", days: 7 },
-                { label: "2 weeks", days: 14 },
-              ].map((option) => (
-                <button
-                  key={option.label}
-                  type="button"
-                  onClick={() => setDueDate(addDays(todayISO(), option.days))}
-                  className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition ${
-                    dueDate === addDays(todayISO(), option.days)
-                      ? "border-brand bg-brand-soft text-brand-dark"
-                      : "border-line-2 bg-white text-muted hover:border-[#c9c2b6] hover:text-ink"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-              <span className="ml-1 text-[11px] font-semibold text-faint">· time:</span>
-              {TIME_PRESETS.map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  onClick={() => setDueTime(preset.value)}
-                  className={`rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition ${
-                    dueTime === preset.value
-                      ? "border-brand bg-brand-soft text-brand-dark"
-                      : "border-line-2 bg-white text-muted hover:border-[#c9c2b6] hover:text-ink"
-                  }`}
-                >
-                  {preset.label.split(" · ")[1]}
-                </button>
-              ))}
+            {/* ---- quick picks ----------------------------------------------
+                Two clearly separate groups, each on its own line, so the
+                row never wraps mid-group and the chips keep one height. */}
+            <div className="mt-3 space-y-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="w-14 shrink-0 text-[11px] font-bold tracking-[.06em] text-faint uppercase">
+                  Due in
+                </span>
+                {[
+                  { label: "Today", days: 0 },
+                  { label: "Tomorrow", days: 1 },
+                  { label: "3 days", days: 3 },
+                  { label: "1 week", days: 7 },
+                  { label: "2 weeks", days: 14 },
+                ].map((option) => {
+                  const active = dueOffset === option.days;
+                  return (
+                    <button
+                      key={option.label}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setDueDate(addDays(todayISO(), option.days))}
+                      className={`h-8 rounded-full border px-3 text-[12px] font-semibold transition ${
+                        active
+                          ? "border-brand bg-brand text-white shadow-[0_3px_10px_rgba(79,70,229,.28)]"
+                          : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="w-14 shrink-0 text-[11px] font-bold tracking-[.06em] text-faint uppercase">
+                  Time
+                </span>
+                {TIME_PRESETS.map((preset) => {
+                  const active = dueTime === preset.value;
+                  return (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setDueTime(preset.value)}
+                      className={`h-8 rounded-full border px-3 text-[12px] font-semibold transition ${
+                        active
+                          ? "border-brand bg-brand text-white shadow-[0_3px_10px_rgba(79,70,229,.28)]"
+                          : "border-line-2 bg-white text-muted hover:border-[#c7ccdf] hover:text-ink"
+                      }`}
+                    >
+                      {preset.label.split(" · ")[1]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

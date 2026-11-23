@@ -90,9 +90,9 @@ export function WeeklyDefaultEditor({ initial }: { initial: WeeklyDefault | null
 
   return (
     <div className="rounded-xl border border-line bg-white">
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap">
         <div className="min-w-0 flex-1">
-          <h2 className="text-[13.5px] font-semibold text-ink">My usual week</h2>
+          <h2 className="text-[13.5px] font-extrabold text-ink">My usual week</h2>
           <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">
             {hasDefault
               ? "New weeks fill themselves in from this. Any day you edit keeps its own hours."
@@ -125,7 +125,7 @@ export function WeeklyDefaultEditor({ initial }: { initial: WeeklyDefault | null
                   onClick={() => setBrush(option.value)}
                   aria-pressed={brush === option.value}
                   className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium transition-colors ${
-                    brush === option.value ? "bg-[#f2efea] text-ink" : "text-muted hover:text-ink-2"
+                    brush === option.value ? "bg-[#f1f3fa] text-ink" : "text-muted hover:text-ink-2"
                   }`}
                 >
                   <i className={`h-2 w-2 rounded-[3px] ${option.dot}`} aria-hidden="true" />
@@ -195,8 +195,13 @@ export function WeeklyDefaultEditor({ initial }: { initial: WeeklyDefault | null
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button type="button" onClick={save} disabled={busy} className="btn-primary btn-sm">
+          <div className="grid gap-2 pt-1 sm:flex sm:flex-wrap sm:items-center">
+            <button
+              type="button"
+              onClick={save}
+              disabled={busy}
+              className="btn-primary btn-sm w-full sm:w-auto"
+            >
               {busy ? "Saving…" : "Save default"}
             </button>
             {hasDefault ? (
@@ -209,7 +214,7 @@ export function WeeklyDefaultEditor({ initial }: { initial: WeeklyDefault | null
                 Remove default
               </button>
             ) : null}
-            <span className="ml-auto text-[11.5px] text-faint">
+            <span className="text-[11.5px] text-faint sm:ml-auto">
               Scrolling hours? Tap a cell, not drag.
             </span>
           </div>

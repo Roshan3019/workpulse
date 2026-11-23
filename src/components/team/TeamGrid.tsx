@@ -62,7 +62,7 @@ export function TeamGrid({
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="truncate text-[16px] font-semibold">{member.profile.fullName ?? "Unnamed"}</h3>
+                    <h3 className="truncate text-[16px] font-extrabold">{member.profile.fullName ?? "Unnamed"}</h3>
                     {isSelf ? <Badge tone="indigo">You</Badge> : null}
                   </div>
                   <p className="truncate text-[12.5px] text-muted">{member.profile.email}</p>

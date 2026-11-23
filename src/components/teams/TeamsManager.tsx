@@ -59,7 +59,7 @@ export function TeamsManager({ teams, members }: { teams: Team[]; members: Membe
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
         <div>
-          <h2 className="text-[15px] font-semibold text-ink">Teams</h2>
+          <h2 className="text-[15px] font-extrabold text-ink">Teams</h2>
           <p className="mt-0.5 text-[12.5px] text-muted">
             Group people by what they do. Each task belongs to one team.
           </p>
@@ -175,7 +175,7 @@ export function TeamsManager({ teams, members }: { teams: Team[]; members: Membe
                 {freelancers.map((m) => (
                   <label
                     key={m.userId}
-                    className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 transition-colors hover:bg-[#f8f6f3]"
+                    className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 transition-colors hover:bg-[#f1f3fa]"
                   >
                     <input
                       type="checkbox"
@@ -207,7 +207,7 @@ export function TeamsManager({ teams, members }: { teams: Team[]; members: Membe
 
           {error ? <Alert tone="error">{error}</Alert> : null}
 
-          <div className="flex items-center justify-end gap-2 pt-1">
+          <div className="grid grid-cols-2 gap-2 pt-1 sm:flex sm:items-center sm:justify-end">
             <button type="button" onClick={close} className="btn-ghost btn-sm">
               Cancel
             </button>

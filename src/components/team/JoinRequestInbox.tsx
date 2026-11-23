@@ -50,7 +50,7 @@ export function JoinRequestInbox({ requests }: { requests: JoinRequest[] }) {
   return (
     <section className="overflow-hidden rounded-xl border border-line bg-white">
       <div className="flex items-center gap-2.5 border-b border-line bg-[#fcfcfe] px-4 py-3">
-        <h2 className="text-[13.5px] font-semibold text-ink">Waiting to join</h2>
+        <h2 className="text-[13.5px] font-extrabold text-ink">Waiting to join</h2>
         <span className="rounded-md bg-ink px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white">
           {requests.length}
         </span>

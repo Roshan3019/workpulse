@@ -200,21 +200,21 @@ export function AvailabilityGrid({
     <div>
       {/* ---------------- toolbar: one row, obvious ---------------- */}
       {editable ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="mb-4 grid gap-2 sm:grid-cols-[auto_auto_1fr] sm:items-center">
           {/*
             Three buttons, one per state — the client asked for exactly this.
             Green = free, light red = busy, grey = not filled in. The selected
             one is filled with its own colour; the others stay quiet.
           */}
           <div
-            className="inline-flex items-center gap-1 rounded-xl border border-line-2 bg-white p-1"
+            className="flex items-center gap-1 rounded-xl border border-line-2 bg-white p-1"
             role="group"
             aria-label="What to paint"
           >
             {([
               { value: "free", label: "Free", dot: "bg-ok", on: "bg-ok-soft text-ok-dark ring-1 ring-ok/40", ring: "ring-ok/40" },
               { value: "busy", label: "Busy", dot: "bg-bad/70", on: "bg-bad-soft text-[#991b1b] ring-1 ring-bad/30", ring: "ring-bad/30" },
-              { value: "unassigned", label: "Unassigned", dot: "bg-line-2", on: "bg-[#f2efea] text-ink-2 ring-1 ring-line-2", ring: "ring-line-2" },
+              { value: "unassigned", label: "Unassigned", dot: "bg-line-2", on: "bg-[#f1f3fa] text-ink-2 ring-1 ring-line-2", ring: "ring-line-2" },
             ] as const).map((option) => {
               const active = brush === option.value;
               return (
@@ -224,8 +224,8 @@ export function AvailabilityGrid({
                   onClick={() => setBrush(option.value)}
                   aria-pressed={active}
                   title={`Paint ${option.label.toLowerCase()}`}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors duration-150 ${
-                    active ? option.on : "text-muted hover:bg-[#f8f6f3] hover:text-ink-2"
+                  className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors duration-150 ${
+                    active ? option.on : "text-muted hover:bg-[#f1f3fa] hover:text-ink-2"
                   }`}
                 >
                   <i className={`h-2.5 w-2.5 rounded-[3px] ${option.dot}`} aria-hidden="true" />
@@ -237,7 +237,7 @@ export function AvailabilityGrid({
 
           <select
             aria-label="Quick fill"
-            className="rounded-full border border-line-2 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink-2 outline-none"
+            className="h-9 w-full rounded-full border border-line-2 bg-white px-3 text-[12.5px] font-semibold text-ink-2 outline-none sm:w-auto"
             defaultValue=""
             onChange={(event) => {
               const key = event.target.value as keyof typeof PRESETS | "";
@@ -258,7 +258,7 @@ export function AvailabilityGrid({
             type="button"
             onClick={save}
             disabled={saving || !dirty}
-            className="btn-primary btn-sm ml-auto disabled:opacity-50"
+            className="btn-primary btn-sm w-full disabled:opacity-50 sm:w-auto sm:justify-self-end"
           >
             {saving ? "Saving…" : dirty ? "Save changes" : "Saved"}
           </button>
@@ -294,82 +294,101 @@ export function AvailabilityGrid({
         </div>
       ) : null}
 
-      {/* ---------------- the grid: 7 days, 3 blocks, 12 hours ---------------- */}
+      {/* ---------------- the grid: 7 days, 12 hours ---------------- */}
+      {/*
+        One fixed geometry for the header and every row: a 52px day gutter,
+        then twelve 44px hour cells. Because the header and the rows use the
+        same grid template, each label sits exactly over its own column, which
+        the previous block-based layout could not promise.
+      */}
       <div className="scroll-x -mx-1 px-1">
-        <div className="min-w-[560px]">
-          {/* block headers */}
-          <div
-            className="mb-1.5 grid items-end gap-1"
-            style={{ gridTemplateColumns: `58px repeat(${BLOCKS.length}, minmax(0, 1fr))` }}
-          >
-            <div />
+        <div className="min-w-[628px]">
+          {/* group captions: each spans exactly the hours it names */}
+          <div className="mb-1 flex items-end pl-[60px]">
             {BLOCKS.map((block) => (
-              <div key={block.label} className="text-center">
-                <div className="text-[10.5px] font-medium tracking-[.06em] text-faint uppercase">{block.label}</div>
-                <div className="text-[10px] font-semibold text-faint">{block.hint}</div>
+              <div
+                key={block.label}
+                className="text-center"
+                style={{ width: `${block.hours.length * 44 + (block.hours.length - 1) * 4}px` }}
+              >
+                <div className="text-[10.5px] font-extrabold tracking-[.06em] text-faint uppercase">
+                  {block.label}
+                </div>
               </div>
             ))}
           </div>
 
-          {days.map((date, index) => {
+          {/* hour labels, one per column */}
+          <div className="mb-1.5 flex items-end gap-1 border-b border-line pb-1.5 pl-[60px]">
+            {VISIBLE_HOURS.map((hour) => (
+              <div
+                key={hour}
+                className="w-11 shrink-0 text-center text-[10px] font-semibold tabular-nums text-faint"
+              >
+                {hourLabel(hour)}
+              </div>
+            ))}
+          </div>
+
+          {days.map((date) => {
             const counts = countStates(map[date] ?? {});
             const isToday = date === today;
             const count = counts.free;
             const busyCount = counts.busy;
             return (
-              <div
-                key={date}
-                className="grid items-center gap-1 border-t border-[#efece6] py-1.5 first:border-t-0"
-                style={{ gridTemplateColumns: `58px repeat(${BLOCKS.length}, minmax(0, 1fr))` }}
-              >
-                <div className="pr-1">
-                  <div className={`text-[10.5px] font-medium tracking-[.04em] uppercase ${isToday ? "text-brand" : "text-faint"}`}>
+              <div key={date} className="flex items-center gap-1 py-1">
+                <div className="w-[52px] shrink-0 pr-1">
+                  <div
+                    className={`text-[10.5px] font-bold tracking-[.04em] uppercase ${
+                      isToday ? "text-brand" : "text-faint"
+                    }`}
+                  >
                     {weekdayOf(date)}
                   </div>
-                  <div className={`text-[14px] leading-tight font-semibold tabular-nums ${isToday ? "text-brand" : "text-ink"}`}>
+                  <div
+                    className={`text-[14px] leading-tight font-bold tabular-nums ${
+                      isToday ? "text-brand" : "text-ink"
+                    }`}
+                  >
                     {fromISODate(date).getDate()}
                   </div>
-                  <div className="flex items-center gap-1 text-[10px] font-medium">
+                  <div className="flex items-center gap-1 text-[10px] font-semibold">
                     {count ? <span className="tabular-nums text-[#047857]">{count}h</span> : null}
                     {busyCount ? <span className="tabular-nums text-[#b91c1c]">{busyCount}h</span> : null}
                     {!count && !busyCount ? <span className="text-faint">—</span> : null}
                   </div>
                 </div>
 
-                {BLOCKS.map((block) => (
-                  <div key={block.label} className="flex gap-1">
-                    {block.hours.map((hour) => {
-                      const state = cellState(map[date], hour);
-                      const label = state === "unassigned" ? "not filled in" : state;
-                      return (
-                        <div
-                          key={hour}
-                          className="cell flex-1"
-                          data-date={date}
-                          data-hour={hour}
-                          data-state={state}
-                          data-readonly={editable ? "false" : "true"}
-                          data-selected={isToday ? "true" : "false"}
-                          onPointerDown={onCellPointerDown}
-                          role={editable ? "button" : undefined}
-                          aria-label={`${weekdayOf(date)} ${shortDate(date)} ${hourLabel(hour)} — ${label}`}
-                          tabIndex={editable ? 0 : -1}
-                          onKeyDown={(event) => {
-                            if (!editable) return;
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              painted.current.clear();
-                              paintCell(event.currentTarget, brush);
-                            }
-                          }}
-                          title={`${hourLabel(hour)}–${hourLabel(hour + 1)} · ${label}`}
-                        >
-                          <span className="sr-only">{hourLabel(hour)}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                {VISIBLE_HOURS.map((hour) => {
+                  const state = cellState(map[date], hour);
+                  const label = state === "unassigned" ? "not filled in" : state;
+                  return (
+                    <div
+                      key={hour}
+                      className="cell w-11 shrink-0"
+                      data-date={date}
+                      data-hour={hour}
+                      data-state={state}
+                      data-readonly={editable ? "false" : "true"}
+                      data-selected={isToday ? "true" : "false"}
+                      onPointerDown={onCellPointerDown}
+                      role={editable ? "button" : undefined}
+                      aria-label={`${weekdayOf(date)} ${shortDate(date)} ${hourLabel(hour)}, ${label}`}
+                      tabIndex={editable ? 0 : -1}
+                      onKeyDown={(event) => {
+                        if (!editable) return;
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          painted.current.clear();
+                          paintCell(event.currentTarget, brush);
+                        }
+                      }}
+                      title={`${hourLabel(hour)}–${hourLabel(hour + 1)} · ${label}`}
+                    >
+                      <span className="sr-only">{hourLabel(hour)}</span>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
@@ -388,7 +407,7 @@ export function AvailabilityGrid({
             <div
               key={date}
               className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-[12.5px] ${
-                touched ? "border-line bg-white" : "border-dashed border-line-2 bg-[#fbfaf8]"
+                touched ? "border-line bg-white" : "border-dashed border-line-2 bg-[#fafaff]"
               }`}
             >
               <span className="font-medium text-ink-2">

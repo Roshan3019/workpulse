@@ -42,7 +42,7 @@ export function OverallSlots({
       ) : (
         <>
           {/* one-line summary instead of three big tiles */}
-          <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl bg-[#fbfaf8] px-3.5 py-2.5 text-[12.5px] text-muted">
+          <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl bg-[#fafaff] px-3.5 py-2.5 text-[12.5px] text-muted">
             <span>
               <b className="text-[15px] font-semibold tabular-nums text-ink">{total}h</b> free across the team
             </span>
@@ -90,7 +90,7 @@ export function OverallSlots({
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.member.id}>
-                    <td className="sticky left-0 z-10 border-t border-[#efece6] bg-white py-2.5 pr-2">
+                    <td className="sticky left-0 z-10 border-t border-[#f0f1f7] bg-white py-2.5 pr-2">
                       <div className="flex items-center gap-2">
                         <Avatar
                           id={row.member.userId}
@@ -108,7 +108,7 @@ export function OverallSlots({
                       </div>
                     </td>
                     {row.perDay.map((hours, i) => (
-                      <td key={week[i]} className="border-t border-[#efece6] px-1 py-2.5 text-center">
+                      <td key={week[i]} className="border-t border-[#f0f1f7] px-1 py-2.5 text-center">
                         {hours > 0 ? (
                           <span className="inline-block min-w-[38px] rounded-md bg-ok-soft px-1.5 py-1 text-[11.5px] font-medium tabular-nums text-[#2f6b4a]">
                             {hours}h
@@ -120,7 +120,7 @@ export function OverallSlots({
                         )}
                       </td>
                     ))}
-                    <td className="border-t border-[#efece6] px-2 py-2.5 text-right text-[12.5px] font-medium tabular-nums">
+                    <td className="border-t border-[#f0f1f7] px-2 py-2.5 text-right text-[12.5px] font-medium tabular-nums">
                       {row.total}h
                     </td>
                   </tr>

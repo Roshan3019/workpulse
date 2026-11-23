@@ -29,7 +29,7 @@ export function GoogleButton({ label = "Continue with Google", next = "/app" }: 
   return (
     <a
       href={href}
-      className="flex w-full items-center justify-center gap-3 rounded-[8px] border border-line-2 bg-white px-4 py-2.5 text-[13.5px] font-medium transition-colors duration-150 hover:bg-[#fbfaf8]"
+      className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-line-2 bg-white px-4 text-sm font-semibold text-ink-2 transition hover:border-[#c7ccdf] hover:bg-[#fafaff]"
     >
       <GoogleIcon />
       {label}
@@ -60,7 +60,7 @@ export function LoginForm({ next = "/app" }: { next?: string }) {
           />
         </div>
         {state?.error ? <Alert tone="error">{state.error}</Alert> : null}
-        <button type="submit" disabled={pending} className="btn-primary w-full py-3">
+        <button type="submit" disabled={pending} className="btn-primary h-11 w-full">
           {pending ? "Signing in…" : "Sign in"}
         </button>
       </form>
@@ -120,7 +120,7 @@ export function SignupForm({ next = "/app", email = "" }: { next?: string; email
         </div>
         {state?.error ? <Alert tone="error">{state.error}</Alert> : null}
         {state?.ok && state.message ? <Alert tone="success">{state.message}</Alert> : null}
-        <button type="submit" disabled={pending} className="btn-primary w-full py-3">
+        <button type="submit" disabled={pending} className="btn-primary h-11 w-full">
           {pending ? "Creating…" : "Create workspace"}
         </button>
       </form>

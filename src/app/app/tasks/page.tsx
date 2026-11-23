@@ -146,7 +146,7 @@ export default async function TasksPage({
                       ) : null;
                     })()}
                   </div>
-                  <h2 className="mt-1.5 text-[16.5px] font-semibold">{task.title}</h2>
+                  <h2 className="mt-1.5 text-[16.5px] font-extrabold">{task.title}</h2>
                   {task.description ? (
                     <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed break-words text-muted">
                       {task.description}
