@@ -367,4 +367,8 @@ the `vercel.json` change did not reach the deployment. Redeploy and check again.
 3. Merge to `main` → Vercel deploys **Production** automatically.
 4. If the update includes a **new SQL migration** in `supabase/migrations/`, run that file in the
    Supabase SQL Editor **before** (or right after) merging. Migrations are never run automatically.
-5. If you changed a `NEXT_PUBLIC_*` variable, **redeploy** — saving alone does nothing.
+5. If you changed a `NEXT_PUBLIC_*` variable, **redeploy**. Saving alone does nothing.
+6. Preview deployments inherit `NEXT_PUBLIC_SUPABASE_*` (they run against the same project),
+   but **not** `NEXT_PUBLIC_SITE_URL`, which is production-only. That is deliberate: a preview
+   should authenticate against its own hostname. Supabase's redirect allow-list includes
+   `https://workpulse-*-roshan-s-team2.vercel.app/**`, so preview logins work without changes.
