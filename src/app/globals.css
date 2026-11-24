@@ -168,6 +168,29 @@
   box-shadow: none;
 }
 
+/*
+ * A plan is ONE block, not a run of squares. The cells of a block lose the gutter
+ * between them (set in the component, because a cell needs different margins
+ * depending on whether it is painted), the interior corners go square, and only
+ * the two ends stay rounded — so 2pm–6pm reads as a single bar on the row.
+ */
+.slot[data-plan="first"] {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.slot[data-plan="middle"] {
+  border-radius: 0;
+}
+.slot[data-plan="last"] {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+/* A focused block answers on the keyboard the same way it answers on hover. */
+.slot[data-plan]:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 1px;
+}
+
 /* planned task blocks (dashboard + the member's own calendar) --------------
  * A block that belongs to a task reads as a *task*, not as plain "busy": the
  * same warm palette as the rest of the sheet, dark enough to carry the task

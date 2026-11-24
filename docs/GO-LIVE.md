@@ -232,10 +232,17 @@ provider's answer afterwards, so a failure is never silent.
 ### Database update for this build
 
 The task-hours feature needs migration **`0011_task_plans.sql`** (a `task_plans`
-table, its policies, and two functions). It is idempotent — run it in **SQL
-Editor → New query** like the others. Without it the app still loads: the
-planning button says the feature is unavailable and the team view simply shows
-no task bars, instead of failing a page.
+table, its policies, two functions and two triggers). It is idempotent — run it
+in **SQL Editor → New query** like the others. Without it the app still loads:
+the planning button says the feature is unavailable and the team view simply
+shows no task bars, instead of failing a page.
+
+**If you already ran 0011** before this build, re-run it: it now also installs
+`release_plan_hours` (the trigger that frees the hours a plan had taken when
+you clear or re-plan that day — without it a cleared plan left those hours
+reading "busy" with nothing on the calendar to explain them). Re-running the
+whole file is safe; every statement in it is `create or replace` / `drop … if
+exists` / `create table if not exists`.
 
 ---
 

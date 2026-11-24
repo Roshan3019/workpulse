@@ -213,10 +213,17 @@ function waitForReady(proc, timeoutMs = 90000) {
       b.on("exit", (c) => (c === 0 ? resolve() : reject(new Error("build failed\n" + log.slice(-3000)))));
     });
 
+    /*
+     * `detached` so the server leads its own process group: `npx` starts `next`
+     * as a child, and killing only the wrapper left `next-server` running with
+     * the port bound. The next run then failed with EADDRINUSE, or worse, ran its
+     * checks against the previous build.
+     */
     proc = spawn("npx", ["next", "start", "-p", String(APP_PORT)], {
       cwd: process.cwd(),
       env,
       stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
     });
     await waitForReady(proc);
     console.log("app started on", APP_PORT);
@@ -349,8 +356,16 @@ function waitForReady(proc, timeoutMs = 90000) {
     const htmlDemo = await (await req(makeJar(), "/login")).text();
     check("login page offers a working Google link", htmlDemo.includes('href="/auth/login?next=%2Fapp"'), "link present");
   } finally {
-    proc?.kill("SIGKILL");
+    /* Take the whole group down, and give the port a moment to be released. */
+    if (proc?.pid) {
+      try {
+        process.kill(-proc.pid, "SIGKILL");
+      } catch {
+        proc.kill("SIGKILL");
+      }
+    }
     mock.server.close();
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
   console.log(`\n=== ${pass} passed, ${fail} failed ===`);

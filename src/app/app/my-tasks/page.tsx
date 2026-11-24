@@ -99,6 +99,7 @@ export default async function MyTasksPage() {
               task={task}
               plans={plansByTask.get(task.id) ?? []}
               availability={myAvailability}
+              days={dates}
             />
           ))}
         </div>
@@ -116,6 +117,7 @@ export default async function MyTasksPage() {
                 task={task}
                 plans={plansByTask.get(task.id) ?? []}
                 availability={myAvailability}
+                days={dates}
               />
             ))}
           </div>

@@ -139,7 +139,7 @@ export default async function AvailabilityPage({
         <div>
           <h1 className="h1">When are you free?</h1>
           <p className="lede">
-            Paint each hour free, busy or unassigned. Your admin sees this instantly.
+            Paint each hour free or busy. Any hour you leave blank reads as not filled in, and your admin sees this instantly.
           </p>
         </div>
         <Badge tone="green">{session.membership.capacity}h weekly capacity</Badge>

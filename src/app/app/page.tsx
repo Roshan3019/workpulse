@@ -156,6 +156,13 @@ export default async function DashboardPage({
       {/* One day, every teammate, hour by hour — the client's team-slot view. */}
       <div id="team-slots" className="scroll-mt-24">
         <TeamSlotGrid
+          /*
+           * Everyone with a row here, so a name that repeats is flagged even
+           * when the admins are filtered out of the grid (a teammate and the
+           * owner can both be "Roshan Patel", and only the owner's row would
+           * have carried the hint).
+           */
+          namePool={members}
           members={freelancers}
           availability={availability}
           plans={plannedBlocks}

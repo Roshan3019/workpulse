@@ -4,22 +4,21 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Alert } from "@/components/ui/Modal";
 import { saveWeeklyDefaultAction } from "@/lib/actions/joining";
-import { HOURS, PRESETS, hourLabel } from "@/lib/dates";
+import { WORK_FIRST_HOUR, WORK_HOURS } from "@/lib/availability";
+import { PRESETS, hourLabel } from "@/lib/dates";
 import { countStates } from "@/lib/availability";
 import type { CellState } from "@/lib/availability";
 import type { SlotState, WeeklyDefault } from "@/lib/types";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/**
- * The hours this editor shows: the same 8a–7p window the team-slot card and the
- * availability grid paint, so a person can line the three up without counting
- * cells. `DAY_START`/`DAY_END` are duplicated there on purpose — those grids
- * thin columns out on a phone and this one must not.
+/*
+ * The hours this editor shows come from `availability.ts` — the same 8a–7p
+ * window the team-slot card and the availability grid paint, so a person can
+ * line the three up without counting cells. (Those grids thin columns out on a
+ * phone; this one keeps all twelve.)
  */
-const FIRST_HOUR = 8;
-const LAST_HOUR = 19;
-const WORK_HOURS = HOURS.filter((h) => h >= FIRST_HOUR && h <= LAST_HOUR);
+const FIRST_HOUR = WORK_FIRST_HOUR;
 
 /**
  * "My usual week" — set once, inherited by every future day that has no entry

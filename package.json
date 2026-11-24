@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test:sql": "node tests/sql/invite-token.test.cjs",
     "test:auth": "node tests/auth-flow.test.cjs",
-    "test": "npm run test:sql && npm run test:invite && npm run test:join && npm run test:assign && npm run test:dates && npm run test:supabase && npm run test:perf && npm run test:auth && npm run test:tasks && npm run test:plans && npm run test:teams",
+    "test": "npm run test:sql && npm run test:invite && npm run test:join && npm run test:assign && npm run test:dates && npm run test:format && npm run test:supabase && npm run test:perf && npm run test:auth && npm run test:tasks && npm run test:plans && npm run test:teams",
     "test:invite": "node tests/sql/invite-link.test.cjs",
     "test:dates": "node tests/dates.test.cjs",
     "test:perf": "node tests/perf.test.cjs",
@@ -18,7 +18,8 @@
     "test:tasks": "node tests/task-assign.test.cjs",
     "test:assign": "node tests/sql/multi-assign.test.cjs",
     "test:plans": "node tests/sql/task-plans.test.cjs",
-    "test:supabase": "node tests/supabase-queries.test.cjs"
+    "test:supabase": "node tests/supabase-queries.test.cjs",
+    "test:format": "node tests/format.test.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

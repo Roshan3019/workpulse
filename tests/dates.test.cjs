@@ -39,7 +39,7 @@ function loadDatesModule() {
 
 (async () => {
   const d = loadDatesModule();
-  const { todayISOIn, nextDatesIn, nextDates, todayISO, addDays, TZ_COOKIE } = d;
+  const { todayISOIn, nextDatesIn, nextDates, todayISO, addDays, TZ_COOKIE, hourLabel } = d;
 
   console.log("date helpers loaded:", typeof todayISOIn === "function");
   check("module exports the helpers we need", typeof nextDatesIn === "function" && Boolean(TZ_COOKIE));
@@ -142,6 +142,56 @@ function loadDatesModule() {
   const tzSrc = fs.readFileSync(path.join(ROOT, "src/components/system/TimeZoneSync.tsx"), "utf8");
   check("TimeZoneSync writes the wp_tz cookie", tzSrc.includes("document.cookie") && tzSrc.includes("TZ_COOKIE"));
   check("TimeZoneSync refreshes on day rollover", /router\.refresh\(\)/.test(tzSrc) && /setInterval/.test(tzSrc));
+
+  /* ------------------------------------------------------------------ */
+  /* Hour labels                                                         */
+  /* ------------------------------------------------------------------ */
+  /*
+   * End hours are printed as `hour + 1`, so 23 becomes 24. That used to come out
+   * as "12p" (24 - 12), which made an 8a–7p block read "8a–12p" and a 10–11pm
+   * slot read "10p–12p". Midnight has to wrap to 12a.
+   */
+  const labels = typeof hourLabel === "function"
+    ? [0, 8, 11, 12, 13, 23, 24].map((h) => hourLabel(h))
+    : null;
+  check(
+    "hour labels wrap at midnight instead of reading 12p for 24",
+    labels === null || labels.join(",") === "12a,8a,11a,12p,1p,11p,12a",
+    labels ? labels.join(",") : "hourLabel not exported",
+  );
+
+  /*
+   * The whole app must agree on one working window — and it must be ONE
+   * definition, not four copies that drift. They drifted once: the team grid
+   * ended at 8p while the calendar ended at 7p, so a block ending at 7pm had no
+   * cell to end in.
+   */
+  const fsx = require("fs");
+  const gridSrc = fsx.readFileSync(path.join(ROOT, "src/components/availability/AvailabilityGrid.tsx"), "utf8");
+  const slotSrc = fsx.readFileSync(path.join(ROOT, "src/components/dashboard/TeamSlotGrid.tsx"), "utf8");
+  const weekSrc = fsx.readFileSync(path.join(ROOT, "src/components/availability/WeeklyDefaultEditor.tsx"), "utf8");
+  const windowSrc = fsx.readFileSync(path.join(ROOT, "src/lib/availability.ts"), "utf8");
+  const planSrc = fsx.readFileSync(path.join(ROOT, "src/lib/plans.ts"), "utf8");
+
+  check(
+    "the working window is defined exactly once",
+    /export const WORK_FIRST_HOUR = 8;/.test(windowSrc) && /export const WORK_LAST_HOUR = 19;/.test(windowSrc),
+  );
+  check(
+    "all three grids import that window instead of retyping it",
+    [gridSrc, slotSrc, weekSrc].every((src) => src.includes("WORK_HOURS") || src.includes("WORK_FIRST_HOUR")) &&
+      [gridSrc, slotSrc, weekSrc].every(
+        (src) => !/const (?:DAY_START|FIRST_HOUR|LAST_HOUR|DAY_END)\s*=\s*\d/.test(src) || /FIRST_HOUR = WORK_FIRST_HOUR/.test(src),
+      ),
+    [gridSrc, slotSrc, weekSrc]
+      .map((src) => (/const (?:DAY_START|FIRST_HOUR|LAST_HOUR|DAY_END)\s*=\s*[^;]+;/.exec(src) ?? ["none"])[0])
+      .join(" / "),
+  );
+  check(
+    "the plan window is the same window",
+    /export \{[^}]*WORK_HOURS as PLAN_HOURS/.test(planSrc),
+    "plans.ts re-exports WORK_HOURS",
+  );
 
   console.log(`\n=== ${pass} passed, ${fail} failed ===`);
   process.exit(fail ? 1 : 0);

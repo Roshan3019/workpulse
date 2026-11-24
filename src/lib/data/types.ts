@@ -386,8 +386,11 @@ export function seedMemory(): MemoryDatabase {
       createdAt: now,
     }));
   const taskPlans: TaskPlan[] = [
-    ...planBlocks(U.aarav, tasks[0], dates[0], [[10, 12, 120], [12, 14, 120]]),
+    /* One long block, so the demo shows the task's name across the bar... */
+    ...planBlocks(U.aarav, tasks[0], dates[0], [[10, 14, 240]]),
     ...planBlocks(U.priya, tasks[1], dates[1], [[14, 18, 180]]),
+    /* ...and one short block, which carries no text and answers on hover. */
+    ...planBlocks(U.kabir, tasks[5], dates[0], [[16, 18, 60]]),
   ];
 
   return {

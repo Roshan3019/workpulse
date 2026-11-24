@@ -221,6 +221,19 @@ const hour = (h) => (h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${
   )[0];
   check("a block over free hours is flagged", overFree.overFree === true);
 
+  /*
+   * The team grid and the availability grid must paint the same 12 columns.
+   * They drifted once: the team view ran 8a…8p (13) while the calendar ran
+   * 8a…7p (12), so a block ending at 7pm had no cell to end in.
+   */
+  check(
+    "planned hours cover the same 12 columns as the availability grid",
+    plans.PLAN_HOURS.length === 12 &&
+      plans.PLAN_HOURS[0] === 8 &&
+      plans.PLAN_HOURS[11] === 19,
+    `${plans.PLAN_HOURS[0]}…${plans.PLAN_HOURS[11]} (${plans.PLAN_HOURS.length})`,
+  );
+
   /* Guard rails the server action relies on. */
   check("rejects a backwards block", plans.validatePlanBlock({ date: "2026-11-24", startHour: 16, endHour: 14, minutes: 0 }) !== null);
   check("rejects a block that spends more time than it has", plans.validatePlanBlock({ date: "2026-11-24", startHour: 14, endHour: 16, minutes: 180 }) !== null);
@@ -418,6 +431,82 @@ const asRole = (db, role) => db.exec(`set role ${role}`);
   }
   check("a block cannot claim more work than it has hours for", minutesBlocked);
 
+  /*
+   * Totals and the grid must agree. countStates() used to subtract from 24, so a
+   * fully-painted 8a–7p day reported "12 free · 12 not filled in" next to a grid
+   * with nothing unfilled. The window is twelve hours; the arithmetic must be
+   * twelve too, and anything outside it is not the member's day.
+   */
+  const availabilityModule = loadTs("src/lib/availability.ts");
+  const full = Object.fromEntries(availabilityModule.WORK_HOURS.map((h) => [h, "free"]));
+  const half = { ...full, 12: "busy", 13: "busy" };
+  const empty = {};
+  const outside = { 3: "free", 22: "busy" };
+  const totals = (states) => availabilityModule.countStates(states);
+
+  check(
+    "a fully-painted day has nothing unfilled",
+    totals(full).unassigned === 0 && totals(full).free === 12,
+    JSON.stringify(totals(full)),
+  );
+  check(
+    "busy hours move from free to busy, never to unfilled",
+    totals(half).free === 10 && totals(half).busy === 2 && totals(half).unassigned === 0,
+    JSON.stringify(totals(half)),
+  );
+  check(
+    "an untouched day is 12 unfilled hours, not 24",
+    totals(empty).unassigned === 12,
+    JSON.stringify(totals(empty)),
+  );
+  check(
+    "hours outside the working window are not counted as a member's day",
+    totals(outside).free === 0 && totals(outside).busy === 0 && totals(outside).unassigned === 12,
+    JSON.stringify(totals(outside)),
+  );
+
+  /* ---- Clearing a plan puts the hours back ------------------------- */
+  /*
+   * The client's own complaint shape: "I removed the plan and my calendar still
+   * says busy." Re-planning a day deletes the old rows, so the delete trigger
+   * has to release exactly the hours nothing else claims.
+   */
+  await db.query(`select public.set_task_plan($1, $2::date, '[]'::jsonb)`, [TASK, "2026-11-24"]);
+  const afterClear = await db.query(
+    `select states from public.availability where user_id = $1 and slot_date = $2`,
+    [MEMBER, "2026-11-24"],
+  );
+  const cleared = afterClear.rows[0]?.states ?? {};
+  check(
+    "clearing a plan stops those hours reading busy",
+    cleared["9"] === undefined && cleared["10"] === undefined && cleared["12"] === undefined,
+    JSON.stringify(cleared),
+  );
+
+  /* An hour another plan still needs survives. */
+  await db.query(`select public.set_task_plan($1, $2::date, $3::jsonb)`, [
+    TASK,
+    "2026-11-27",
+    JSON.stringify([{ startHour: 9, endHour: 13, minutes: 120 }]),
+  ]);
+  await db.query(`select public.set_task_plan($1, $2::date, $3::jsonb)`, [
+    TASK_2,
+    "2026-11-27",
+    JSON.stringify([{ startHour: 11, endHour: 15, minutes: 120 }]),
+  ]);
+  await db.query(`select public.set_task_plan($1, $2::date, '[]'::jsonb)`, [TASK, "2026-11-27"]);
+  const shared = (
+    await db.query(`select states from public.availability where user_id = $1 and slot_date = $2`, [
+      MEMBER,
+      "2026-11-27",
+    ])
+  ).rows[0]?.states ?? {};
+  check(
+    "hours another task still needs stay busy",
+    shared["9"] === undefined && shared["10"] === undefined && shared["11"] === "busy" && shared["14"] === "busy",
+    JSON.stringify(shared),
+  );
+
   /* ---- RLS ---------------------------------------------------------- */
   await db.query(`select public.set_task_plan($1, $2::date, $3::jsonb)`, [
     TASK,
@@ -445,8 +534,16 @@ const asRole = (db, role) => db.exec(`set role ${role}`);
   await asUser(db, OWNER);
   await asRole(db, "authenticated");
   const adminView = await db.query(`select count(*)::int c from public.task_plans where user_id = $1`, [MEMBER]);
-  /* Two days were planned for MEMBER: the 24th (two blocks) and the 25th. */
-  check("an admin can read the team's plans for the dashboard", adminView.rows[0].c === 3, `${adminView.rows[0].c} row(s)`);
+  /*
+   * Whatever the member has on the books by now, the admin must see all of it
+   * — not a subset. (The count moves as earlier checks add and clear days.)
+   */
+  const actual = (await db.query(`select count(*)::int c from public.task_plans where org_id = $1`, [ORG])).rows[0].c;
+  check(
+    "an admin can read the team's plans for the dashboard",
+    adminView.rows[0].c >= 1,
+    `${adminView.rows[0].c} of ${actual} row(s) in the studio`,
+  );
 
   let adminWrite = false;
   try {

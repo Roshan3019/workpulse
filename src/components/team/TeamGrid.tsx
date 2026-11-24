@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Avatar, Badge } from "@/components/ui";
 import { Alert } from "@/components/ui/Modal";
 import { changeCapacityAction, changeRoleAction, removeMemberAction } from "@/lib/actions/team";
+import { distinctNames } from "@/lib/format";
 import { ROLE_LABEL, ROLE_TONE, type Member, type OrgRole } from "@/lib/types";
 
 export function TeamGrid({
@@ -23,6 +24,8 @@ export function TeamGrid({
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  /* Two "Roshan Patel" rows are a real thing here; the email tells them apart. */
+  const names = distinctNames(members);
 
   function run(id: string, fn: () => Promise<{ error?: string }>) {
     setBusyId(id);
@@ -62,7 +65,9 @@ export function TeamGrid({
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="truncate text-[16px] font-semibold">{member.profile.fullName ?? "Unnamed"}</h3>
+                    <h3 className="truncate text-[16px] font-semibold" title={names.get(member.userId)?.hint ? member.profile.email : undefined}>
+                      {member.profile.fullName ?? "Unnamed"}
+                    </h3>
                     {isSelf ? <Badge tone="indigo">You</Badge> : null}
                   </div>
                   <p className="truncate text-[12.5px] text-muted">{member.profile.email}</p>

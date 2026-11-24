@@ -20,12 +20,15 @@ export function MemberTaskCard({
   task,
   plans = [],
   availability = {},
+  days = [],
 }: {
   task: Task;
   /** This member's planned blocks for this task (all days). */
   plans?: TaskPlan[];
   /** Their availability for the same window, so the dialog can warn about free hours. */
   availability?: AvailabilityStates;
+  /** The days the page loaded (viewer's timezone) — the planner offers only these. */
+  days?: string[];
 }) {
   const [planOpen, setPlanOpen] = useState(false);
   const router = useRouter();
@@ -69,6 +72,7 @@ export function MemberTaskCard({
         }}
         plans={plans}
         availability={availability}
+        days={days}
         open={planOpen}
         onClose={() => setPlanOpen(false)}
       />

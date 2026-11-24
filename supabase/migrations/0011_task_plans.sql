@@ -239,3 +239,57 @@ begin
 end $$;
 
 grant execute on function public.clear_task_plan(uuid, date) to authenticated;
+
+/* ---------------------------------------------------------------------------- */
+/* Housekeeping: when a plan goes, put the hours it claimed back                */
+/* ---------------------------------------------------------------------------- */
+-- Deleting a plan used to leave its hours marked busy forever: the member
+-- cleared "Landing page" from 2–6pm and their calendar still said busy, with
+-- nothing left to explain it. This trigger only touches hours that are busy and
+-- covered by *no remaining plan*, so an hour the member marked busy by hand, or
+-- one another task still needs, is left exactly as it was.
+create or replace function public.release_plan_hours()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  keep    jsonb := '[]'::jsonb;   -- hours another plan still covers
+  release jsonb := '[]'::jsonb;   -- this plan's hours minus those
+  hour    int;
+begin
+  /*
+   * Two steps, both plain jsonb, so there is no array/text casting to get wrong
+   * (that was a real bug: `::text[]` on a jsonb_agg is not a cast Postgres
+   * accepts). `keep` is every hour of this person's that another plan covers on
+   * that day; `release` is this block's hours that are not in it.
+   */
+  select coalesce(jsonb_agg(distinct to_jsonb(h)), '[]'::jsonb)
+    into keep
+    from public.task_plans p,
+         lateral generate_series(p.start_hour, p.end_hour - 1) as h
+   where p.org_id = old.org_id
+     and p.user_id = old.user_id
+     and p.plan_date = old.plan_date;
+
+  select coalesce(jsonb_agg(to_jsonb(h)), '[]'::jsonb)
+    into release
+    from generate_series(old.start_hour, old.end_hour - 1) as h
+   where not keep @> to_jsonb(h);
+
+  -- Put those hours back to "not filled in", but only where the member is
+  -- currently marked busy, so anything they set by hand stays untouched.
+  for hour in select (jsonb_array_elements(release))::text::int loop
+    update public.availability a
+       set states = coalesce(a.states, '{}'::jsonb) - to_jsonb(hour)::text,
+           updated_at = now()
+     where a.org_id = old.org_id
+       and a.user_id = old.user_id
+       and a.slot_date = old.plan_date
+       and coalesce(a.states, '{}'::jsonb) ->> (hour::text) = 'busy';
+  end loop;
+
+  return old;
+end $$;
+
+drop trigger if exists release_plan_hours on public.task_plans;
+create trigger release_plan_hours
+  after delete on public.task_plans
+  for each row execute function public.release_plan_hours();

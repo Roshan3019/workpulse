@@ -1,3 +1,4 @@
+import { distinctNames } from "@/lib/format";
 import { Avatar, Badge, EmptyState, ProgressBar, Section } from "@/components/ui";
 import { UTILISATION_LABEL, UTILISATION_TONE, computeWorkload } from "@/lib/workload";
 import type { Member, Task } from "@/lib/types";
@@ -11,6 +12,7 @@ const FILL_TONE = {
 
 export function WorkloadList({ members, tasks }: { members: Member[]; tasks: Task[] }) {
   const rows = computeWorkload(members, tasks);
+  const names = distinctNames(members);
 
   return (
     <Section
@@ -38,7 +40,14 @@ export function WorkloadList({ members, tasks }: { members: Member[]; tasks: Tas
                     src={row.member.profile.avatarUrl}
                   />
                   <div className="min-w-0">
-                    <div className="truncate text-[14.5px] font-bold">{row.member.profile.fullName ?? "Unnamed"}</div>
+                    <div className="truncate text-[14.5px] font-bold" title={names.get(row.member.userId)?.hint ? row.member.profile.email : undefined}>
+                      {names.get(row.member.userId)?.name ?? "Unnamed"}
+                      {names.get(row.member.userId)?.hint ? (
+                        <span className="ml-1.5 text-[11px] font-medium text-faint">
+                          {names.get(row.member.userId)?.hint}
+                        </span>
+                      ) : null}
+                    </div>
                     <div className="truncate text-[12px] text-muted">{row.member.profile.email}</div>
                   </div>
                 </div>

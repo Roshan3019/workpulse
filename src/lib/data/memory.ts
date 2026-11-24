@@ -502,6 +502,15 @@ export class MemoryStore implements DataStore {
       throw new Error("Only someone on the task can plan hours for it");
     }
 
+    /*
+     * The rows being replaced, captured before the swap: the hours they claim
+     * are the hours that may need releasing below. (`0011` does this with a
+     * delete trigger; this is the in-memory twin of that behaviour.)
+     */
+    const previous = d.taskPlans.filter(
+      (p) => p.orgId === orgId && p.taskId === input.taskId && p.userId === input.userId && p.date === input.date,
+    );
+
     // One day of one task is replaced wholesale, so a drag that split or merged
     // a block cannot leave a stale half behind.
     d.taskPlans = d.taskPlans.filter(
@@ -532,20 +541,47 @@ export class MemoryStore implements DataStore {
       });
     }
 
-    // Planning hours is saying "I'm busy then" — mirror it into availability so
-    // the member's calendar and the admin's team view cannot disagree.
-    if (blocks.length) {
-      const key = `${orgId}:${input.userId}`;
-      const existing = d.availabilityStates[key] ?? (d.availabilityStates[key] = {});
-      const merged = busyStatesForPlans(blocks, existing);
-      for (const [date, states] of Object.entries(merged)) {
-        existing[date] = states;
-        const legacy = (d.availability[key] ??= {});
-        const hours = hoursFromStates(states);
-        if (hours.length) legacy[date] = hours;
-        else delete legacy[date];
+    /*
+     * Planning hours is saying "I'm busy then" — mirror it into availability so
+     * the member's calendar and the admin's team view cannot disagree.
+     *
+     * Both directions, like the `0011` triggers in Postgres: hours that are now
+     * covered go busy, and hours this member planned a moment ago but has just
+     * removed go back to "not filled in" — unless another task still needs them.
+     * Otherwise clearing a plan left a permanent block of free time marked busy
+     * with nothing to explain it, and the only way out was to re-mark the day by
+     * hand.
+     */
+    const key = `${orgId}:${input.userId}`;
+    const existing = d.availabilityStates[key] ?? (d.availabilityStates[key] = {});
+    const mine = d.taskPlans.filter((p) => p.orgId === orgId && p.userId === input.userId);
+
+    /* Every hour still claimed by one of this person's other plans. */
+    const stillPlanned = new Set<number>();
+    for (const plan of mine) {
+      if (plan.date !== input.date) continue;
+      for (let h = plan.startHour; h < plan.endHour; h += 1) stillPlanned.add(h);
+    }
+
+    const freed = new Set<number>();
+    for (const plan of previous.filter((p) => p.date === input.date)) {
+      for (let h = plan.startHour; h < plan.endHour; h += 1) {
+        if (!stillPlanned.has(h)) freed.add(h);
       }
     }
+
+    const day = { ...(existing[input.date] ?? {}) };
+    for (const hour of freed) {
+      if (day[hour] === "busy") delete day[hour];
+    }
+    const merged = busyStatesForPlans(blocks, { ...existing, [input.date]: day });
+    existing[input.date] = merged[input.date] ?? day;
+    if (!Object.keys(existing[input.date]).length) delete existing[input.date];
+
+    const legacy = (d.availability[key] ??= {});
+    const hours = hoursFromStates(existing[input.date] ?? {});
+    if (hours.length) legacy[input.date] = hours;
+    else delete legacy[input.date];
   }
 
   async listInvites(orgId: string): Promise<Invite[]> {

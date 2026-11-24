@@ -13,10 +13,18 @@ export const HOURS: number[] = Array.from(
 
 export const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
 
+/**
+ * "8a", "12p", "7p" — and "12a" for 24, which is how an end hour is printed.
+ *
+ * Callers pass `hour + 1` for the end of a slot, so 23 becomes 24. Without this
+ * guard that printed "12p" (24 − 12), a tooltip reading "10p–12p" for a 10–11pm
+ * slot and, worse, an all-day block ending at "12p".
+ */
 export function hourLabel(h: number): string {
-  if (h === 0) return "12a";
-  if (h === 12) return "12p";
-  return h < 12 ? `${h}a` : `${h - 12}p`;
+  const hour = ((Math.round(h) % 24) + 24) % 24;
+  if (hour === 0) return "12a";
+  if (hour === 12) return "12p";
+  return hour < 12 ? `${hour}a` : `${hour - 12}p`;
 }
 
 export function toISODate(d: Date): string {

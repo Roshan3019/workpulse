@@ -6,9 +6,7 @@ import { Alert } from "@/components/ui/Modal";
 import { clearTaskPlanAction, saveTaskPlanAction } from "@/lib/actions/tasks";
 import { hourLabel } from "@/lib/dates";
 import {
-  PLAN_FIRST_HOUR,
   PLAN_HOURS,
-  PLAN_LAST_HOUR,
   blockHours,
   minutesLabel,
   normaliseBlocks,
@@ -44,6 +42,7 @@ export function TaskPlanDialog({
   task,
   plans: initialPlans,
   availability,
+  days: window14,
   open,
   onClose,
 }: {
@@ -52,31 +51,42 @@ export function TaskPlanDialog({
   plans: TaskPlan[];
   /** Their availability states for the same window, to warn about free hours. */
   availability: AvailabilityStates;
+  /** The days the page loaded, in the viewer's timezone — the only days offered. */
+  days: string[];
   open: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [date, setDate] = useState<string>(
-    () => initialPlans[0]?.date ?? task.startDate ?? task.deadline ?? "",
-  );
+  /*
+   * Which day opens. A saved plan wins; then the task's start or due date —
+   * but only if that day is one of the days the page loaded. A task that started
+   * a month ago, or is due next month, would otherwise preselect a date with no
+   * option in the list: the <select> shows one day while the strip saves to
+   * another. That is exactly how hours end up on a day the admin never sees.
+   */
+  const [date, setDate] = useState<string>(() => {
+    const wanted = initialPlans[0]?.date ?? task.startDate ?? task.deadline ?? "";
+    return window14.includes(wanted) ? wanted : (window14[0] ?? wanted);
+  });
   const [blocks, setBlocks] = useState<PlanDraft[]>(() => findBlocks(initialPlans, initialPlans[0]?.date ?? ""));
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  /* The window offered is the two weeks from today, same as every other grid. */
-  const days = useMemo(() => {
-    const out: string[] = [];
-    const base = new Date();
-    for (let i = 0; i < 14; i += 1) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
-      out.push(d.toISOString().slice(0, 10));
-    }
-    return out;
-  }, []);
+  /*
+   * The days offered are the days the page actually loaded, passed in — not a
+   * window invented from the browser clock.
+   *
+   * This was a real bug: the dialog built its own list with
+   * `new Date().toISOString()`, which is UTC. For anyone east of UTC (India is
+   * +5:30) that is *yesterday* until 05:30, so the first option in the dropdown
+   * pointed at a day the server had not fetched — the member painted hours, saw
+   * "Saved", and the admin's grid showed nothing for that date. One list, from
+   * the server, in the viewer's timezone.
+   */
+  const days = window14;
 
-  /* Keep the painted blocks in step when the day switches. */
+  /* The day's own blocks, loaded when the day switches. Empty is empty. */
   const lastDate = useRef(date);
   useEffect(() => {
     if (lastDate.current === date) return;
@@ -87,27 +97,12 @@ export function TaskPlanDialog({
   }, [date, initialPlans]);
 
   /*
-   * Opening with nothing planned pre-paints a sensible first block for the day
-   * the member is most likely to mean (the task's start day, else its due day,
-   * else today), sized to the estimate and sitting inside the working window.
-   * It is a suggestion they can drag over — not saved until they say so.
+   * Nothing is pre-painted. Earlier this dialog opened with a suggested block
+   * already selected, which read as "the app decided 11am–7pm for me" — and a
+   * member who pressed Save without dragging had a wrong day written to their
+   * calendar. Hours are the member's call: the strip starts empty every time,
+   * and the only thing that ever appears is what they drag.
    */
-  useEffect(() => {
-    if (!open) return;
-    setBlocks((prev) => {
-      if (prev.length || initialPlans.length) return prev;
-      const estimate = Math.max(1, Math.min(8, Math.round(Number(task.estHours) || 1)));
-      const start = Math.max(PLAN_FIRST_HOUR, Math.min(14, PLAN_LAST_HOUR - estimate));
-      return [
-        {
-          date,
-          startHour: start,
-          endHour: Math.min(PLAN_LAST_HOUR + 1, start + estimate),
-          minutes: estimate * 60,
-        },
-      ];
-    });
-  }, [open, initialPlans.length, task.estHours, date]);
 
   useEffect(() => {
     if (!open) return;
@@ -198,8 +193,38 @@ export function TaskPlanDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, date, blocks]);
 
-  function onCellDown(hour: number) {
+  /**
+   * Pressing a cell.
+   *
+   * `viaKeyboard` matters: a pointer drag is ended by a `pointerup`, a keypress
+   * never is. Arming the drag on Enter used to leave `dragging` true forever, so
+   * the next time the mouse crossed the strip it painted hours nobody asked for.
+   */
+  function onCellDown(hour: number, viaKeyboard = false) {
     if (pending) return;
+    if (viaKeyboard) {
+      setBlocks((prev) => {
+        const inside = prev.find((b) => b.startHour <= hour && b.endHour > hour);
+        /* Enter on a planned hour takes that hour out; Enter on a bare hour
+           paints that hour. Arrow keys can then stretch it (see `nudge`). */
+        if (inside) {
+          const rest = prev.filter((b) => b !== inside);
+          if (inside.startHour < hour) rest.push({ ...inside, endHour: hour });
+          if (inside.endHour > hour + 1) rest.push({ ...inside, startHour: hour + 1 });
+          return normaliseBlocks(rest);
+        }
+        const booked = prev.reduce((sum, b) => sum + b.minutes, 0);
+        const estimate = Math.max(0, Math.round(Number(task.estHours || 0) * 60));
+        const spare = Math.max(0, estimate - booked);
+        return normaliseBlocks([
+          ...prev,
+          { date, startHour: hour, endHour: hour + 1, minutes: spare ? 60 : 0 },
+        ]);
+      });
+      setSaved(null);
+      setError(null);
+      return;
+    }
     /*
      * Pressing a cell inside an existing block starts a *resize* from that
      * block's far edge, so a 4-hour bar survives the first touch and can be
@@ -368,7 +393,7 @@ export function TaskPlanDialog({
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      onCellDown(hour);
+                      onCellDown(hour, true);
                     }
                     if (event.key === "ArrowRight" && event.shiftKey) nudge(hour, 1);
                     if (event.key === "ArrowLeft" && event.shiftKey) nudge(hour, -1);
@@ -384,7 +409,12 @@ export function TaskPlanDialog({
                   aria-pressed={Boolean(block)}
                   aria-label={`${hourLabel(hour)}, ${block ? "planned for this task" : "not planned"}`}
                 >
-                  {hourLabel(hour).replace("a", "").replace("p", "")}
+                  {/*
+                    A blocked hour prints no number — the bar's own name and the
+                    list underneath carry it, and a number inside the bar read as
+                    part of the task name ("Working task 11").
+                  */}
+                  {block ? "" : hourLabel(hour).replace("a", "").replace("p", "")}
                 </button>
               );
             })}
@@ -449,7 +479,8 @@ export function TaskPlanDialog({
           </ul>
         ) : (
           <p className="mt-4 rounded-xl border border-dashed border-line-2 bg-[#fbfaf8] px-3 py-2.5 text-[12.5px] text-muted">
-            Nothing planned for this day yet. Drag across the hours above.
+            Nothing planned for this day yet — that is how it starts. Press an hour and drag to the
+            last one you&apos;ll work; one straight block is easiest for your admin to read.
           </p>
         )}
 
@@ -465,7 +496,12 @@ export function TaskPlanDialog({
         ) : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={save} disabled={pending} className="btn-primary btn-sm">
+          <button
+            type="button"
+            onClick={save}
+            disabled={pending || (!blocks.length && !initialPlans.some((p) => p.date === date))}
+            className="btn-primary btn-sm disabled:opacity-50"
+          >
             {pending ? "Saving…" : "Save my hours"}
           </button>
           <button

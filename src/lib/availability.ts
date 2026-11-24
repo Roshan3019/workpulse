@@ -86,12 +86,35 @@ export function countStates(states: Record<number, SlotState>): {
 } {
   let free = 0;
   let busy = 0;
-  for (const v of Object.values(states)) {
+  /*
+   * Only the hours the grid actually shows are counted.
+   *
+   * This used to subtract from 24. Because the grid offers 8a–7p (twelve
+   * hours), a fully-painted day reported "12 free · 12 not filled in" — the
+   * totals and the grid disagreed on the same screen, which is exactly the
+   * "timings are mismatching" complaint. A state outside the window (old data
+   * from before the window narrowed) is ignored rather than counted.
+   */
+  for (const hour of WORK_HOURS) {
+    const v = states[hour];
     if (v === "free") free++;
     else if (v === "busy") busy++;
   }
-  return { free, busy, unassigned: HOURS_PER_DAY - free - busy };
+  return { free, busy, unassigned: WORK_HOURS.length - free - busy };
 }
+
+/**
+ * The hours every screen offers: 8a–7p, twelve columns.
+ *
+ * One list, imported by the availability grid, the admin day grid, the planner
+ * and the totals — the client's "the same day must read the same everywhere".
+ */
+export const WORK_FIRST_HOUR = 8;
+export const WORK_LAST_HOUR = 19;
+export const WORK_HOURS: number[] = Array.from(
+  { length: WORK_LAST_HOUR - WORK_FIRST_HOUR + 1 },
+  (_, i) => WORK_FIRST_HOUR + i,
+);
 
 /** Totals across several days — used by the admin overview. */
 export function countStatesAcross(days: Record<number, SlotState>[]): {

@@ -95,8 +95,41 @@ const OWNER = "11111111-1111-4111-8111-111111111111";
   const range = A.setRange({}, [9, 10, 11], "free");
   check("setRange paints a contiguous block", Object.values(range).filter((v) => v === "free").length === 3);
 
+  /*
+   * The counts describe the grid the client looks at: 8a–7p, twelve cells. It
+   * used to subtract from 24, so a fully-painted day claimed twelve hours were
+   * "not filled in" — the totals and the grid contradicted each other.
+   */
   const counts = A.countStates({ 9: "free", 10: "free", 11: "busy" });
-  check("countStates splits free / busy / unassigned", counts.free === 2 && counts.busy === 1 && counts.unassigned === 21, JSON.stringify(counts));
+  check(
+    "countStates splits free / busy / unassigned over the twelve working hours",
+    counts.free === 2 && counts.busy === 1 && counts.unassigned === 9,
+    JSON.stringify(counts),
+  );
+  /* One vocabulary across the calendar, the admin grid, the planner and the
+     dashboard: "unassigned" is the storage value, "not filled in" is what the
+     client reads. A second word on one screen made the two look unrelated. */
+  const fsx = require("fs");
+  const uiFiles = [
+    "src/components/availability/AvailabilityGrid.tsx",
+    "src/components/dashboard/TeamSlotGrid.tsx",
+    "src/components/tasks/TaskPlanDialog.tsx",
+  ];
+  const spoken = uiFiles.map((f) => fsx.readFileSync(path.join(ROOT, f), "utf8"));
+  check(
+    "no screen says the word \"unassigned\" to a person",
+    spoken.every((src) => !/>\s*Unassigned\s*</.test(src) && !/\bUnassigned\b/.test(src.replace(/\/\*[\s\S]*?\*\//g, ""))),
+    uiFiles.filter((f, i) => /\bUnassigned\b/.test(spoken[i])).join(", ") || "all good",
+  );
+
+  check(
+    "hours outside the working window do not count towards anyone's day",
+    (() => {
+      const odd = A.countStates({ 2: "free", 22: "busy", 9: "free" });
+      return odd.free === 1 && odd.busy === 0 && odd.unassigned === 11;
+    })(),
+    JSON.stringify(A.countStates({ 2: "free", 22: "busy", 9: "free" })),
+  );
 
   const across = A.countStatesAcross([{ 9: "free" }, { 9: "busy", 10: "busy" }]);
   check("countStatesAcross sums days", across.free === 1 && across.busy === 2, JSON.stringify(across));

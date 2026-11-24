@@ -14,7 +14,6 @@
  * Everything here is pure so the same rules can be tested without a browser;
  * the store, the server actions and the grid all call these.
  */
-import { HOURS } from "./dates";
 import type {
   AvailabilityStates,
   PlannedBlock,
@@ -23,13 +22,17 @@ import type {
   TaskStatus,
 } from "./types";
 
-/** The working window every grid in the app paints: 8am to 7pm. */
-export const PLAN_FIRST_HOUR = 8;
-export const PLAN_LAST_HOUR = 19;
+/**
+ * The working window every grid in the app paints: 8am to 7pm.
+ *
+ * Re-exported from `availability.ts`, which owns the single definition — the
+ * two constants that used to live here and there drifted apart once already
+ * (a grid ending at 8p with nothing to plan into), and a plan cannot sit in an
+ * hour the calendar refuses to show.
+ */
+export { WORK_HOURS as PLAN_HOURS, WORK_FIRST_HOUR as PLAN_FIRST_HOUR, WORK_LAST_HOUR as PLAN_LAST_HOUR } from "./availability";
 
-export const PLAN_HOURS: number[] = HOURS.filter(
-  (h) => h >= PLAN_FIRST_HOUR && h <= PLAN_LAST_HOUR,
-);
+import { WORK_HOURS } from "./availability";
 
 export type PlanState = "free" | "busy" | "unassigned" | "planned" | "planned-busy";
 

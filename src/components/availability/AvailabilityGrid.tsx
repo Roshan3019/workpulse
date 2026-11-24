@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Alert } from "@/components/ui/Modal";
 import { bulkSaveAvailabilityStatesAction } from "@/lib/actions/availability";
 import {
+  WORK_HOURS,
   cellState,
   countStates,
   hoursFromStates,
@@ -17,21 +18,30 @@ import type { AvailabilityStates, SlotState } from "@/lib/types";
 
 type Mode = "edit" | "read";
 
-/** Workday window — showing 6a–10p across 7 days made the grid feel like a spreadsheet. */
-const DAY_START = 8; // 8am
-const DAY_END = 20; // exclusive → last slot is 7p
-
-const VISIBLE_HOURS = HOURS.filter((h) => h >= DAY_START && h < DAY_END);
+/**
+ * Workday window — showing 6a–10p across 7 days made the grid feel like a
+ * spreadsheet. The hours themselves come from `availability.ts`, which the
+ * planner, the team grid and the totals all share, so a day cannot mean one
+ * thing here and another thing on the dashboard.
+ */
+const VISIBLE_HOURS = WORK_HOURS;
 
 /** Width of the weekday/date gutter, shared by the ruler and every row. */
 const DAY_GUTTER = "56px";
 
 /** Group hours into 3 blocks so the grid reads as Morning / Afternoon / Evening. */
-const BLOCKS = [
-  { label: "Morning", hint: "8a – 12p", hours: [8, 9, 10, 11] },
-  { label: "Afternoon", hint: "12p – 5p", hours: [12, 13, 14, 15, 16] },
-  { label: "Evening", hint: "5p – 8p", hours: [17, 18, 19] },
-] as const;
+const blocks = [
+  { label: "Morning", hours: [8, 9, 10, 11] },
+  { label: "Afternoon", hours: [12, 13, 14, 15, 16] },
+  { label: "Evening", hours: [17, 18, 19] },
+];
+
+/* The hint is written from the hours, so it can never contradict the columns
+   underneath it — it used to say "5p – 8p" over three cells that end at 7p. */
+const BLOCKS = blocks.map((b) => ({
+  ...b,
+  hint: `${hourLabel(b.hours[0])} – ${hourLabel(b.hours[b.hours.length - 1] + 1)}`,
+}));
 
 export function AvailabilityGrid({
   dates,
@@ -217,7 +227,7 @@ export function AvailabilityGrid({
             {([
               { value: "free", label: "Free", dot: "bg-ok", on: "bg-ok-soft text-ok-dark ring-1 ring-ok/40", ring: "ring-ok/40" },
               { value: "busy", label: "Busy", dot: "bg-bad/70", on: "bg-bad-soft text-[#991b1b] ring-1 ring-bad/30", ring: "ring-bad/30" },
-              { value: "unassigned", label: "Unassigned", dot: "bg-line-2", on: "bg-[#f8f6f3] text-ink-2 ring-1 ring-line-2", ring: "ring-line-2" },
+              { value: "unassigned", label: "Not filled in", dot: "bg-line-2", on: "bg-[#f8f6f3] text-ink-2 ring-1 ring-line-2", ring: "ring-line-2" },
             ] as const).map((option) => {
               const active = brush === option.value;
               return (
@@ -277,7 +287,7 @@ export function AvailabilityGrid({
           <i className="inline-block h-2.5 w-2.5 rounded-[3px] bg-bad/55" aria-hidden="true" /> Busy
         </span>
         <span className="flex items-center gap-1.5">
-          <i className="inline-block h-2.5 w-2.5 rounded-[3px] border border-line-2 bg-[#f4f5fa]" aria-hidden="true" /> Unassigned
+          <i className="inline-block h-2.5 w-2.5 rounded-[3px] border border-line-2 bg-[#f4f5fa]" aria-hidden="true" /> Not filled in
         </span>
         {editable ? <span className="text-faint">Drag to paint.</span> : null}
         {editable && dirty ? (
@@ -308,7 +318,7 @@ export function AvailabilityGrid({
               : "invisible border-transparent bg-transparent"
           }`}
         >
-          Pick <b>Free</b>, <b>Busy</b> or <b>Unassigned</b> above, then drag across the hours.
+          Pick <b>Free</b>, <b>Busy</b> or <b>Not filled in</b> above, then drag across the hours.
         </div>
       ) : null}
 
@@ -465,7 +475,9 @@ export function AvailabilityGrid({
             <b className="font-semibold text-[#b91c1c]">{weekBusy}h</b> busy
           </span>
         ) : null}
-        <span className="tabular-nums text-faint">{weekUnassigned}h unassigned</span>
+        {/* Same words as the legend and the tooltip: "unassigned" told the
+            client nothing, and the member's own screen called it "not filled in". */}
+        <span className="tabular-nums text-faint">{weekUnassigned}h not filled in</span>
       </div>
 
       {message ? (

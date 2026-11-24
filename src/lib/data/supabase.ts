@@ -147,6 +147,21 @@ const inviteFromRow = (r: Row): Invite => ({
   createdAt: r.created_at,
 });
 
+/**
+ * Postgres / PostgREST codes that mean "the schema is older than the app".
+ *
+ * 42P01 no such table, 42703 no such column, PGRST205 table not in the schema
+ * cache, PGRST204 column not in the schema cache. Every read that can meet one
+ * of these degrades instead of taking the page down — the previous behaviour was
+ * a black error screen wherever a deploy landed before its migration.
+ */
+function isMissingSchema(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (["42P01", "42703", "PGRST204", "PGRST205"].includes(error.code ?? "")) return true;
+  const message = error.message ?? "";
+  return /does not exist|schema cache/i.test(message) && !/permission|policy/i.test(message);
+}
+
 function fail(error: { message: string } | null, context: string): void {
   if (!error) return;
   // Surface a friendly message; the DB raises human-readable exceptions.
@@ -359,6 +374,39 @@ export class SupabaseStore implements DataStore {
       })
       .select("*")
       .single();
+    /*
+     * A deploy can land before its migration. `start_date` / `due_time` arrived
+     * in 0003 and `team_id` in 0005, so on an older project this insert fails
+     * with 42703 and used to surface as "create task: column ... does not
+     * exist" on the dashboard — or, worse, a 500. Retrying without the newer
+     * columns keeps the admin's actual job (create the task) working, and the
+     * task shows the moment the migration is run.
+     */
+    if (isMissingSchema(error)) {
+      const { data: retried, error: retryError } = await sb
+        .from("tasks")
+        .insert({
+          org_id: orgId,
+          title: input.title,
+          client: input.client ?? "",
+          description: input.description ?? null,
+          assignee_id: input.assigneeId,
+          est_hours: input.estHours,
+          progress: input.progress ?? 0,
+          status: input.status ?? "pending",
+          priority: input.priority ?? "medium",
+          deadline: input.deadline ?? null,
+          created_by: actorId,
+        })
+        .select("*")
+        .single();
+      if (retryError) {
+        fail(retryError, "create task");
+        throw new Error(`create task: ${retryError.message}`);
+      }
+      await this.setTaskAssignees(orgId, (retried as Row).id as string, assigneesOf(input)).catch(() => {});
+      return { ...taskFromRow(retried as Row), assigneeIds: assigneesOf(input) };
+    }
     fail(error, "create task");
     await this.setTaskAssignees(orgId, (data as Row).id as string, assigneesOf(input));
     const created = await sb
@@ -742,7 +790,7 @@ export class SupabaseStore implements DataStore {
      * quiet (no blocks drawn, planning says "not available") instead of taking
      * the dashboard down with it. Same rule as the 0010 fallback in listTasks.
      */
-    if (isMissingTable(error)) return [];
+    if (isMissingTable(error) || isMissingSchema(error)) return [];
     fail(error, "load task plans");
     return ((data ?? []) as Row[]).map((r) => ({
       id: r.id,
@@ -784,7 +832,7 @@ export class SupabaseStore implements DataStore {
         minutes: b.minutes,
       })),
     });
-    if (isMissingTable(error)) return; // no 0011: nothing to plan into yet
+    if (isMissingTable(error) || isMissingSchema(error)) return; // no 0011 yet
     if (error) {
       /*
        * Older projects may not have the RPC but do have the table. Fall back to
