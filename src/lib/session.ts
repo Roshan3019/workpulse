@@ -192,36 +192,6 @@ export async function requireAdmin(): Promise<Session> {
   return session;
 }
 
-export async function getOrgMemberships(): Promise<{ id: string; name: string; role: OrgRole; slug: string }[]> {
-  if (env.demoMode) {
-    const ctx = await getAuthContext();
-    if (!ctx) return [];
-    const store = getStore();
-    const orgs = await store.listOrgsForUser(ctx.user.id);
-    const out: { id: string; name: string; role: OrgRole; slug: string }[] = [];
-    for (const org of orgs) {
-      const membership = await store.getMembership(org.id, ctx.user.id);
-      if (membership) out.push({ id: org.id, name: org.name, role: membership.role, slug: org.slug });
-    }
-    return out;
-  }
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return [];
-  const { data } = await supabase
-    .from("memberships")
-    .select("role, organizations(id, name, slug)")
-    .eq("user_id", user.id);
-  return (data ?? []).map((row: any) => ({
-    id: row.organizations.id,
-    name: row.organizations.name,
-    slug: row.organizations.slug,
-    role: row.role as OrgRole,
-  }));
-}
-
 /**
  * The user's timezone (from the `wp_tz` cookie set by <TimeZoneSync />), used to
  * anchor every "next N days" window to *their* today rather than the server's.
