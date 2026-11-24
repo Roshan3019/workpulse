@@ -9,6 +9,7 @@ import {
 import { getStore } from "@/lib/data";
 import { orgMembers } from "@/lib/data/request-cache";
 import { env } from "@/lib/env";
+import { describeDelivery } from "@/lib/invite-mailer";
 import { requireSession } from "@/lib/session";
 import { isAdminRole } from "@/lib/types";
 
@@ -59,6 +60,7 @@ export default async function SettingsPage() {
               seatsUsed={members.length}
               seatLimit={session.organization.seatLimit}
               canInvite={admin}
+              delivery={describeDelivery()}
             />
           </Section>
 

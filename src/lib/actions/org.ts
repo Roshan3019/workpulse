@@ -4,12 +4,20 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { env } from "../env";
 import { getStore, memoryStore } from "../data";
+import { deliverySentence, sendInviteEmail } from "../invite-mailer";
 import { getAuthContext, requireAdmin } from "../session";
 import { createSupabaseServerClient } from "../supabase/server";
 import { inviteSchema, orgSchema, planSchema } from "../validation";
 import { PLANS, type PlanTier } from "../types";
 
-export type ActionResult = { error?: string; ok?: boolean; message?: string; token?: string };
+export type ActionResult = {
+  error?: string;
+  ok?: boolean;
+  message?: string;
+  token?: string;
+  /** true only when the invite email was accepted by the provider. */
+  delivered?: boolean;
+};
 
 /* -------------------------------------------------------------------------- */
 /* Onboarding — create the first organization for a fresh account             */
@@ -124,15 +132,34 @@ export async function createInviteAction(formData: FormData): Promise<ActionResu
       parsed.data.email ?? "",
       parsed.data.role,
     );
+    /*
+     * Send the email ourselves and report what actually happened.
+     *
+     * The old message said "emailed (if delivery is configured)", which is not
+     * a status — the client sent an invite to their own Gmail, read "Invite
+     * ready", and received nothing. Now the sentence comes from the transport:
+     * "Emailed … via Resend", or "Resend rejected it: <its own words>", or
+     * "not emailed because no provider is configured". The link is always
+     * shown either way.
+     */
+    const outcome = parsed.data.email
+      ? await sendInviteEmail({
+          to: parsed.data.email,
+          orgName: session.organization.name,
+          inviterName: session.user.fullName ?? session.user.email,
+          role: parsed.data.role,
+          link: `/invite/${invite.token}`,
+          expiresAt: invite.expiresAt,
+        })
+      : null;
+
     revalidatePath("/app/settings");
-    const emailed = Boolean(parsed.data.email);
     return {
       ok: true,
       token: invite.token,
-      // With email delivery configured (0003) Supabase sends the invite; the
-      // link is always shown as the reliable fallback.
-      message: emailed
-        ? `Invite created${emailed ? " and emailed (if delivery is configured)" : ""} — the link below always works too.`
+      delivered: outcome?.status === "sent",
+      message: parsed.data.email
+        ? `Invite created. ${outcome ? deliverySentence(outcome) : "The link below works."}`
         : "Shareable link created — anyone with the link can join.",
     };
   } catch (error) {

@@ -1,6 +1,7 @@
 import "server-only";
 import { createSupabaseServerClient } from "../supabase/server";
 import { hoursFromStates, normaliseStates, normaliseWeeklyDefault } from "../availability";
+import { busyStatesForPlans, normaliseBlocks } from "../plans";
 import { assigneesOf } from "../types";
 import type {
   AvailabilityMap,
@@ -17,10 +18,17 @@ import type {
   Profile,
   SlotState,
   Task,
+  TaskPlan,
   Team,
   WeeklyDefault,
 } from "../types";
-import type { DataStore, InviteLookup, TaskFilters } from "./types";
+import type {
+  DataStore,
+  InviteLookup,
+  PlanBlockInput,
+  TaskFilters,
+  TaskPlanFilters,
+} from "./types";
 
 /* ----------------------------- row mappers ------------------------------ */
 type Row = Record<string, any>;
@@ -709,6 +717,111 @@ export class SupabaseStore implements DataStore {
     void orgId;
     void userId;
     fail(error, "save weekly default");
+  }
+
+  /* ----------------------------- task plans ----------------------------- */
+  /*
+   * Plans are read separately from tasks on purpose. The dashboard needs one
+   * day of one team, and a task list needs none — embedding plans in the task
+   * select would make every task query heavier for a view that never shows them.
+   */
+  async listTaskPlans(orgId: string, filters: TaskPlanFilters = {}): Promise<TaskPlan[]> {
+    if (filters.userIds && !filters.userIds.length) return [];
+    if (filters.dates && !filters.dates.length) return [];
+    const sb = await this.sb();
+    let query = sb
+      .from("task_plans")
+      .select("id, org_id, task_id, user_id, plan_date, start_hour, end_hour, minutes, created_at")
+      .eq("org_id", orgId);
+    if (filters.userIds) query = query.in("user_id", filters.userIds);
+    if (filters.taskIds) query = query.in("task_id", filters.taskIds);
+    if (filters.dates) query = query.in("plan_date", filters.dates);
+    const { data, error } = await query;
+    /*
+     * A project that has not run 0011 yet should still load: the feature goes
+     * quiet (no blocks drawn, planning says "not available") instead of taking
+     * the dashboard down with it. Same rule as the 0010 fallback in listTasks.
+     */
+    if (isMissingTable(error)) return [];
+    fail(error, "load task plans");
+    return ((data ?? []) as Row[]).map((r) => ({
+      id: r.id,
+      orgId: r.org_id,
+      taskId: r.task_id,
+      userId: r.user_id,
+      date: r.plan_date,
+      startHour: Number(r.start_hour),
+      endHour: Number(r.end_hour),
+      minutes: Number(r.minutes ?? 0),
+      createdAt: r.created_at,
+    }));
+  }
+
+  async setTaskPlan(
+    orgId: string,
+    input: { taskId: string; userId: string; date: string; blocks: PlanBlockInput[] },
+  ): Promise<void> {
+    const sb = await this.sb();
+    const blocks = normaliseBlocks(
+      input.blocks.map((b) => ({
+        ...b,
+        date: input.date,
+        minutes: Math.max(0, Math.round(Number(b.minutes) || 0)),
+      })),
+    );
+
+    /*
+     * One RPC writes the day atomically: the blocks and the availability those
+     * blocks imply. Doing it in two round trips would leave a moment where the
+     * team view shows a planned hour the member's calendar calls free.
+     */
+    const { error } = await sb.rpc("set_task_plan", {
+      target_task: input.taskId,
+      plan_date: input.date,
+      blocks: blocks.map((b) => ({
+        startHour: b.startHour,
+        endHour: b.endHour,
+        minutes: b.minutes,
+      })),
+    });
+    if (isMissingTable(error)) return; // no 0011: nothing to plan into yet
+    if (error) {
+      /*
+       * Older projects may not have the RPC but do have the table. Fall back to
+       * plain writes plus an availability upsert so the feature still works.
+       */
+      if (!/function .*set_task_plan/i.test(error.message ?? "")) fail(error, "save task plan");
+      const { error: deleteError } = await sb
+        .from("task_plans")
+        .delete()
+        .eq("org_id", orgId)
+        .eq("task_id", input.taskId)
+        .eq("user_id", input.userId)
+        .eq("plan_date", input.date);
+      fail(deleteError, "clear task plan");
+      if (blocks.length) {
+        const { error: insertError } = await sb.from("task_plans").insert(
+          blocks.map((b) => ({
+            org_id: orgId,
+            task_id: input.taskId,
+            user_id: input.userId,
+            plan_date: input.date,
+            start_hour: b.startHour,
+            end_hour: b.endHour,
+            minutes: b.minutes,
+          })),
+        );
+        fail(insertError, "save task plan");
+      }
+    }
+
+    /* Mirror the blocks into availability, exactly as the RPC does. */
+    if (!blocks.length) return;
+    const states = await this.getAvailabilityStates(orgId, [input.userId], [input.date]);
+    const merged = busyStatesForPlans(blocks, states[input.userId] ?? {});
+    for (const [date, dayStates] of Object.entries(merged)) {
+      await this.saveAvailabilityStates(orgId, input.userId, date, dayStates);
+    }
   }
 
   async getJoinLink(orgId: string): Promise<JoinLink> {

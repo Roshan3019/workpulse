@@ -27,12 +27,22 @@ export default async function MyTasksPage() {
   const active = tasks.filter((t) => t.status !== "done");
   const done = tasks.filter((t) => t.status === "done");
 
-  const dates = nextDatesIn(7, tz);
-  const availability = await store.getAvailabilityStates(orgId, [session.membership.userId], dates);
-  const freeNext7 = dates.reduce(
-    (sum, d) => sum + countStates(availability[session.membership.userId]?.[d] ?? {}).free,
-    0,
-  );
+  const dates = nextDatesIn(14, tz);
+  const [availability, plans] = await Promise.all([
+    store.getAvailabilityStates(orgId, [session.membership.userId], dates),
+    // Planning looks two weeks ahead; the cards ask for their own task's blocks.
+    store.listTaskPlans(orgId, { userIds: [session.membership.userId], dates }),
+  ]);
+  const plansByTask = new Map<string, typeof plans>();
+  for (const plan of plans) {
+    const list = plansByTask.get(plan.taskId) ?? [];
+    list.push(plan);
+    plansByTask.set(plan.taskId, list);
+  }
+  const myAvailability = availability[session.membership.userId] ?? {};
+  const freeNext7 = dates
+    .slice(0, 7)
+    .reduce((sum, d) => sum + countStates(myAvailability[d] ?? {}).free, 0);
   const assignedHours = active.reduce((sum, t) => sum + Number(t.estHours), 0);
   const utilisation = session.membership.capacity
     ? Math.round((assignedHours / session.membership.capacity) * 100)
@@ -84,7 +94,12 @@ export default async function MyTasksPage() {
       ) : (
         <div className="space-y-4">
           {active.map((task) => (
-            <MemberTaskCard key={task.id} task={task} />
+            <MemberTaskCard
+              key={task.id}
+              task={task}
+              plans={plansByTask.get(task.id) ?? []}
+              availability={myAvailability}
+            />
           ))}
         </div>
       )}
@@ -96,7 +111,12 @@ export default async function MyTasksPage() {
           </summary>
           <div className="mt-4 space-y-4">
             {done.map((task) => (
-              <MemberTaskCard key={task.id} task={task} />
+              <MemberTaskCard
+                key={task.id}
+                task={task}
+                plans={plansByTask.get(task.id) ?? []}
+                availability={myAvailability}
+              />
             ))}
           </div>
         </details>

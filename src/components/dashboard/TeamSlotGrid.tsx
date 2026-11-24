@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Avatar, EmptyState, Section } from "@/components/ui";
 import { dayLabel, hourLabel, shortDate, weekdayOf } from "@/lib/dates";
-import { cellState, dayStates, type CellState } from "@/lib/availability";
-import type { AvailabilityStates, Member } from "@/lib/types";
+import { dayStates } from "@/lib/availability";
+import { dayBlocks, mergePlansIntoStates, minutesLabel, type DayBlock } from "@/lib/plans";
+import type { AvailabilityStates, Member, PlannedBlock } from "@/lib/types";
 
 /**
  * "Team slots" — one day, one row per teammate, one column per working hour.
@@ -27,11 +28,21 @@ const ALL_HOURS: number[] = Array.from(
   (_, i) => FIRST_HOUR + i,
 );
 
-const STATE_LABEL: Record<CellState, string> = {
+const STATE_LABEL: Record<string, string> = {
   free: "Free",
   busy: "Busy",
   unassigned: "Not filled in",
+  planned: "Planned for a task",
+  "planned-busy": "Planned for a task (was marked busy)",
 };
+
+/** A block's tooltip: the task name(s), the hours, and how much work is in it. */
+function blockTitle(block: DayBlock): string {
+  const names = block.titles.join(" · ");
+  const effort = block.minutes ? ` · ${minutesLabel(block.minutes)} of work` : "";
+  const overlap = block.titles.length > 1 ? " (two tasks share this time)" : "";
+  return `${names} · ${block.startHour}:00–${block.endHour}:00${effort}${overlap}`;
+}
 
 /** "Mon · Nov 23 · today" when it really is today. */
 function dayTitle(date: string, today: string): string {
@@ -41,6 +52,7 @@ function dayTitle(date: string, today: string): string {
 export function TeamSlotGrid({
   members,
   availability,
+  plans = [],
   date,
   dates,
   today,
@@ -49,6 +61,12 @@ export function TeamSlotGrid({
 }: {
   members: Member[];
   availability: Record<string, AvailabilityStates>;
+  /**
+   * Every planned block for the visible days. The grid lays them over the
+   * availability it is given, so a member who planned 2pm–6pm shows one long
+   * bar with the task's name — the client's example, exactly.
+   */
+  plans?: PlannedBlock[];
   /** The day on screen. */
   date: string;
   /** The 7 days the picker offers. */
@@ -66,19 +84,44 @@ export function TeamSlotGrid({
    * narrow screen happens to show — otherwise the same person would read as
    * "4h free" on a phone and "9h free" on a desktop.
    */
+  /*
+   * Plans are per person. Grouping once, up front, is what keeps one member's
+   * planned bar from appearing on everybody's row — the bug this shape exists
+   * to prevent (`dayBlocks` filters by day, not by who planned it).
+   */
+  const plansByUser = new Map<string, PlannedBlock[]>();
+  for (const plan of plans) {
+    const list = plansByUser.get(plan.userId) ?? [];
+    list.push(plan);
+    plansByUser.set(plan.userId, list);
+  }
+
   const rows = members.map((member) => {
-    const states = dayStates(availability[member.userId], date);
-    const counts = { free: 0, busy: 0 };
+    const blocks = dayBlocks(
+      plansByUser.get(member.userId) ?? [],
+      date,
+      availability[member.userId]?.[date] ?? {},
+    );
+    /*
+     * A planned hour *is* busy (the client's rule), so the merged view is what
+     * the row paints and counts. The blocks list stays alongside it so each
+     * cell knows which bar it belongs to and can drop its gutter.
+     */
+    const states = mergePlansIntoStates(availability[member.userId]?.[date] ?? {}, blocks);
+    const counts = { free: 0, busy: 0, planned: 0 };
     for (const hour of ALL_HOURS) {
-      const state = cellState(states, hour);
+      const state = states[hour] ?? "unassigned";
       if (state === "free") counts.free += 1;
       else if (state === "busy") counts.busy += 1;
+      else if (state === "planned" || state === "planned-busy") counts.planned += 1;
     }
-    return { member, states, counts };
+    const blockAt = (hour: number): DayBlock | undefined =>
+      blocks.find((b) => b.startHour <= hour && b.endHour > hour);
+    return { member, states, counts, blocks, blockAt };
   });
 
   const freeAt = (hour: number) =>
-    rows.filter(({ states }) => cellState(states, hour) === "free").length;
+    rows.filter(({ states }) => (states[hour] ?? "unassigned") === "free").length;
 
   /*
    * The hour rule thins out rather than scrolling sideways: every other hour on
@@ -97,6 +140,7 @@ export function TeamSlotGrid({
   const bestHour = bestCount > 0 ? ALL_HOURS[allHourFree.indexOf(bestCount)] : null;
   const totalFree = allHourFree.reduce((sum, n) => sum + n, 0);
   const fullyFree = allHourFree.filter((n) => n === total).length;
+  const plannedToday = rows.reduce((sum, row) => sum + row.blocks.length, 0);
 
   /* Switching days keeps the team filter and lands back on this card. */
   const dayLink = (target: string) => {
@@ -184,6 +228,7 @@ export function TeamSlotGrid({
                   { label: "Free", state: "free" },
                   { label: "Busy", state: "busy" },
                   { label: "Unassigned", state: "unassigned" },
+                  { label: "Task", state: "planned" },
                 ] as const
               ).map((key) => (
                 <span key={key.label} className="inline-flex items-center gap-1.5 text-[11.5px]">
@@ -220,7 +265,7 @@ export function TeamSlotGrid({
 
             {/* one row per teammate */}
             <ul className="divide-y divide-line border-t border-line">
-              {rows.map(({ member, states, counts }) => {
+              {rows.map(({ member, states, counts, blockAt }) => {
                 const name = member.profile.fullName ?? member.profile.email;
                 return (
                   <li key={member.userId} className="flex items-center gap-1 py-1.5">
@@ -241,16 +286,48 @@ export function TeamSlotGrid({
                     </div>
 
                     {ALL_HOURS.map((hour) => {
-                      const state = cellState(states, hour);
+                      const state = states[hour] ?? "unassigned";
+                      const block = blockAt(hour);
+                      /*
+                       * One continuous bar per block. Only the first cell shows
+                       * the task name, the middle cells lose their gutter, and
+                       * the last cell closes the bar off — so 2pm–6pm reads as
+                       * one long block, which is what the client asked for.
+                       */
+                      const edge = block
+                        ? block.startHour === hour
+                          ? block.endHour === hour + 1
+                            ? "only"
+                            : "first"
+                          : block.endHour === hour + 1
+                            ? "last"
+                            : "middle"
+                        : undefined;
                       return (
                         <div
                           key={hour}
-                          className={`slot min-w-0 flex-1 ${shown(hour)}`}
+                          className={`slot relative min-w-0 flex-1 overflow-hidden ${shown(hour)}`}
                           data-state={state}
-                          title={`${name} · ${hourLabel(hour)}–${hourLabel(hour + 1)} · ${STATE_LABEL[state]}`}
+                          data-plan={edge}
+                          title={
+                            block
+                              ? `${name} · ${blockTitle(block)}`
+                              : `${name} · ${hourLabel(hour)}–${hourLabel(hour + 1)} · ${STATE_LABEL[state] ?? state}`
+                          }
                         >
+                          {edge === "first" || edge === "only" ? (
+                            <span className="pointer-events-none absolute inset-0 flex items-center gap-1 px-1.5 text-[10px] leading-none font-semibold text-white">
+                              <span className="truncate">{block!.label}</span>
+                              {block!.minutes ? (
+                                <span className="ml-auto shrink-0 text-[9.5px] font-medium text-white/80 tabular-nums">
+                                  {minutesLabel(block!.minutes)}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : null}
                           <span className="sr-only">
-                            {name}, {hourLabel(hour)}: {STATE_LABEL[state]}
+                            {name}, {hourLabel(hour)}: {STATE_LABEL[state] ?? state}
+                            {block ? ` — ${block.titles.join(", ")}` : ""}
                           </span>
                         </div>
                       );
@@ -263,6 +340,11 @@ export function TeamSlotGrid({
                       {counts.busy ? (
                         <span className="text-[10px] font-semibold text-[#b91c1c]">
                           {counts.busy}b
+                        </span>
+                      ) : null}
+                      {counts.planned ? (
+                        <span className="text-[10px] font-semibold text-[#8a4a2c]">
+                          {counts.planned}p
                         </span>
                       ) : null}
                     </div>
@@ -297,6 +379,9 @@ export function TeamSlotGrid({
             {totalFree} {totalFree === 1 ? "free hour" : "free hours"} across the team on{" "}
             {dayLabel(date)}
             {fullyFree ? ` · ${fullyFree}h with everyone free` : ""}.
+            {plannedToday
+              ? ` ${plannedToday} ${plannedToday === 1 ? "block is" : "blocks are"} planned for tasks; hover one to see which.`
+              : ""}
           </p>
         </>
       )}

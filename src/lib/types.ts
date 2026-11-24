@@ -169,6 +169,43 @@ export type AvailabilityStates = Record<string, Record<number, SlotState>>;
 export type AvailabilityMap = Record<string, number[]>;
 
 /* --------------------------------------------------------------------------
+   Task plans — "I'll work on this, 2pm to 6pm, on the 24th"
+   --------------------------------------------------------------------------
+   The client's brief: a member picks the hours they will spend on a task, the
+   admin sees that as one continuous block on the team-slot row, and hovering it
+   names the task.
+
+   So a plan is a *block*, not twelve independent cells: `startHour` inclusive
+   to `endHour` exclusive, on one date. A two-hour block and two one-hour blocks
+   look identical on the grid, which is why the editor merges touching blocks
+   before saving. `minutes` is the honest amount of work put into that block —
+   it is what the workload figures add up, so a 4h block can carry 2h of a
+   small job instead of inflating the person's load.
+   -------------------------------------------------------------------------- */
+export interface TaskPlan {
+  id: string;
+  orgId: string;
+  taskId: string;
+  /** The person doing the work — always the member who painted the block. */
+  userId: string;
+  /** YYYY-MM-DD. */
+  date: string;
+  /** Inclusive 0–23. */
+  startHour: number;
+  /** Exclusive 1–24, so `startHour` 14 + `endHour` 18 is 2pm–6pm. */
+  endHour: number;
+  /** Effort inside the block, in minutes. Zero when the member did not say. */
+  minutes: number;
+  createdAt: string;
+}
+
+/** One planned block as the dashboard shows it: the block plus its task's name. */
+export interface PlannedBlock extends TaskPlan {
+  taskTitle: string;
+  taskStatus: TaskStatus;
+}
+
+/* --------------------------------------------------------------------------
    Teams
    -------------------------------------------------------------------------- */
 export interface Team {

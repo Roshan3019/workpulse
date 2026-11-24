@@ -4,15 +4,16 @@ import type {
   Invite,
   JoinLink,
   JoinRequest,
-  MyJoinRequest,
   Member,
   Membership,
-  OrgRole,
+  MyJoinRequest,
   Organization,
+  OrgRole,
   PlanTier,
   Profile,
   SlotState,
   Task,
+  TaskPlan,
   Team,
   WeeklyDefault,
 } from "../types";
@@ -40,6 +41,21 @@ export interface TaskFilters {
   onlyForUser?: string;
   /** when set, only tasks on this team (team dashboard) */
   teamId?: string;
+}
+
+/** A block as the editor sends it — no ids, the store owns those. */
+export interface PlanBlockInput {
+  startHour: number;
+  endHour: number;
+  /** Effort inside the block, in minutes. */
+  minutes: number;
+}
+
+export interface TaskPlanFilters {
+  userIds?: string[];
+  taskIds?: string[];
+  /** YYYY-MM-DD, inclusive window. */
+  dates?: string[];
 }
 
 /**
@@ -135,6 +151,23 @@ export interface DataStore {
   listWeeklyDefaults(orgId: string, userIds: string[]): Promise<Record<string, WeeklyDefault>>;
   /** Replace (or, with null, clear) the template. Dated days are never touched. */
   setWeeklyDefault(orgId: string, userId: string, week: WeeklyDefault | null): Promise<void>;
+
+  // task plans --------------------------------------------------------------
+  /**
+   * The blocks a set of people has planned across a window of days. Every
+   * filter is optional; the dashboard asks for one day and one team, the
+   * member's own page for one person and both weeks.
+   */
+  listTaskPlans(orgId: string, filters?: TaskPlanFilters): Promise<TaskPlan[]>;
+  /**
+   * Replace one person's blocks for one task on one day. Touching blocks are
+   * merged first, so "2–4 and 4–6" is stored as "2–6" and the grid has one long
+   * bar to paint rather than two it would have to stitch together.
+   */
+  setTaskPlan(
+    orgId: string,
+    input: { taskId: string; userId: string; date: string; blocks: PlanBlockInput[] },
+  ): Promise<void>;
 }
 
 /* ==========================================================================
@@ -210,6 +243,8 @@ export interface MemoryDatabase {
   joinRequests: JoinRequest[];
   /** key: `${orgId}:${userId}` */
   weeklyDefaults: Record<string, WeeklyDefault>;
+  /** One entry per planned block; see `setTaskPlan` for the shape. */
+  taskPlans: TaskPlan[];
   demoUsers: (Profile & { role: OrgRole; capacity: number })[];
 }
 
@@ -331,6 +366,30 @@ export function seedMemory(): MemoryDatabase {
     },
   ];
 
+  /*
+   * A couple of planned blocks, so the demo shows the feature the moment it is
+   * opened: Aarav is on "Designing Website" 10–2 today and Priya is on "Brand
+   * Identity Refresh" 2–6 tomorrow. The availability above already says busy
+   * for some of those hours, which is the "planned over busy" case the grid has
+   * to render — deliberately, so that state is never only theoretical.
+   */
+  const planBlocks = (userId: string, task: Task, day: string, blocks: [number, number, number][]) =>
+    blocks.map(([startHour, endHour, minutes], index) => ({
+      id: `plan-${task.id}-${index}`,
+      orgId: org.id,
+      taskId: task.id,
+      userId,
+      date: day,
+      startHour,
+      endHour,
+      minutes,
+      createdAt: now,
+    }));
+  const taskPlans: TaskPlan[] = [
+    ...planBlocks(U.aarav, tasks[0], dates[0], [[10, 12, 120], [12, 14, 120]]),
+    ...planBlocks(U.priya, tasks[1], dates[1], [[14, 18, 180]]),
+  ];
+
   return {
     org,
     orgs: [org, secondOrg],
@@ -343,6 +402,7 @@ export function seedMemory(): MemoryDatabase {
     invites: [],
     // Seeded so the share flow is demoable without creating one first.
     weeklyDefaults: {},
+    taskPlans,
     joinLinks: {
       [org.id]: {
         orgId: org.id,

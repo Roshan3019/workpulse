@@ -6,6 +6,7 @@ import { requireAdmin, requireSession } from "../session";
 import { memberProgressSchema, taskSchema, teamSchema } from "../validation";
 import { assigneesOf, isAdminRole, type Task } from "../types";
 import { resolveTaskTeam, STUDIO_WIDE } from "../task-teams";
+import { busyStatesForPlans, normaliseBlocks, validatePlanBlock } from "../plans";
 
 export type ActionResult = { error?: string; ok?: boolean; message?: string };
 
@@ -190,6 +191,91 @@ export async function adminSetStatusAction(taskId: string, status: Task["status"
     await getStore().updateTask(session.organization.id, taskId, {
       status,
       ...(status === "done" ? { progress: 100 } : {}),
+    });
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+  refresh();
+  return { ok: true };
+}
+
+/* ------------------------------ task plans -------------------------------- */
+/*
+ * A member says which hours they will spend on a task. The client's rules:
+ *
+ *   • these hours become busy on their calendar, so the admin's team view shows
+ *     the block without the member painting the same hours twice;
+ *   • the block is one continuous run — anything touching is merged before it is
+ *     written, so the grid paints a bar rather than a dotted line;
+ *   • a member can only plan their own hours, and only on a task they're on.
+ */
+export async function saveTaskPlanAction(input: {
+  taskId: string;
+  date: string;
+  blocks: { startHour: number; endHour: number; minutes: number }[];
+}): Promise<ActionResult> {
+  const session = await requireSession();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { error: "Pick a day first." };
+  if (!Array.isArray(input.blocks)) return { error: "Nothing to save." };
+
+  for (const block of input.blocks) {
+    const problem = validatePlanBlock({ ...block, date: input.date });
+    if (problem) return { error: problem };
+  }
+
+  const store = getStore();
+  const orgId = session.organization.id;
+
+  /*
+   * Re-read the task through the member's own filter rather than trusting the
+   * id in the payload: the same call decides whether they may touch it at all.
+   */
+  const tasks = await store.listTasks(orgId, { onlyForUser: session.membership.userId });
+  const task = tasks.find((t) => t.id === input.taskId);
+  if (!task) return { error: "That task isn't assigned to you." };
+
+  const blocks = normaliseBlocks(
+    input.blocks.map((b) => ({ ...b, date: input.date, minutes: Number(b.minutes) || 0 })),
+  );
+
+  try {
+    await store.setTaskPlan(orgId, {
+      taskId: input.taskId,
+      userId: session.membership.userId,
+      date: input.date,
+      blocks,
+    });
+    /*
+     * The store mirrors the blocks into availability; do it again here only if
+     * that did not happen (a project without 0011 still gets the calendar
+     * right, which is the part the admin sees).
+     */
+    const existing = await store.getAvailabilityStates(orgId, [session.membership.userId], [input.date]);
+    const merged = busyStatesForPlans(blocks, existing[session.membership.userId] ?? {});
+    for (const [date, dayStates] of Object.entries(merged)) {
+      await store.saveAvailabilityStates(orgId, session.membership.userId, date, dayStates);
+    }
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+
+  refresh();
+  return { ok: true, message: "Saved." };
+}
+
+/** Remove every block this member planned for a task on one day. */
+export async function clearTaskPlanAction(input: {
+  taskId: string;
+  date: string;
+}): Promise<ActionResult> {
+  const session = await requireSession();
+  try {
+    await getStore().setTaskPlan(session.organization.id, {
+      taskId: input.taskId,
+      userId: session.membership.userId,
+      date: input.date,
+      blocks: [],
     });
   } catch (error) {
     return { error: (error as Error).message };

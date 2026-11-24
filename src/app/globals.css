@@ -168,6 +168,43 @@
   box-shadow: none;
 }
 
+/* planned task blocks (dashboard + the member's own calendar) --------------
+ * A block that belongs to a task reads as a *task*, not as plain "busy": the
+ * same warm palette as the rest of the sheet, dark enough to carry the task
+ * name in white. Planning hours also marks them busy (that is the client's
+ * rule), so these two states are the busy cell with a name on it.
+ */
+.slot[data-state="planned"],
+.slot[data-state="planned-busy"],
+.cell[data-state="planned"],
+.cell[data-state="planned-busy"] {
+  background: #8a4a2c;
+  box-shadow: none;
+}
+.cell[data-state="planned"]:hover,
+.cell[data-state="planned-busy"]:hover {
+  background: #7a3f25;
+}
+
+/* One continuous bar per block: the cells between the ends lose their gutter so
+ * 2pm–6pm paints as a single strip, and only the first and last cell round off.
+ * --plan-first / --plan-last are set per cell by the grid. */
+.cell[data-plan="first"] {
+  margin-left: 2px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.cell[data-plan="middle"] {
+  margin-left: 0;
+  margin-right: 0;
+  border-radius: 0;
+}
+.cell[data-plan="last"] {
+  margin-right: 2px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
 /* availability grid cells ------------------------------------------------- */
 /* Three states, three looks: green = free, light red = busy, grey = unassigned. */
 .cell {

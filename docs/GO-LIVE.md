@@ -203,20 +203,39 @@ Two things follow:
 3. You land on **/onboarding** → name your workspace → you become the **owner**.
 4. Open **Settings** and copy an invite link to test the flow in a private window.
 
-### Optional: have Supabase email the invites for you
+### Making invitation emails arrive
 
-Copy-and-paste links work with no extra setup. To also send an email, run this **once** in the
-Supabase SQL Editor — replacing the values:
+Copy-and-paste links work with no extra setup. To have the app email an invite to
+**any** address (a Gmail, a client's domain), a real mail provider is required —
+Supabase's built-in mailer only delivers to your own team's addresses and is
+rate-limited. Full walkthrough: **[docs/EMAIL.md](EMAIL.md)**.
 
-```sql
-select public.set_setting('project_url',         'https://<your-project-ref>.supabase.co');
-select public.set_setting('service_role_key',    '<your-service-role-key>');
-select public.set_setting('invite_redirect_url', 'https://workpulse-xxxx.vercel.app/auth/callback?next=/app');
+Short version — set these in Vercel → Settings → Environment Variables, then
+redeploy:
+
+```
+RESEND_API_KEY=re_…                        # from resend.com (free: 100/day)
+INVITE_FROM_EMAIL=WorkPulse <onboarding@resend.dev>
 ```
 
-Then brand the email in **Authentication → Email Templates → Invite user**.
-The key lives inside Postgres (RLS-locked to `service_role`) — it is never exposed to the browser.
-To switch it off: `delete from public.app_settings where key = 'service_role_key';`
+The invite panel states which transport is in use before you send, and quotes the
+provider's answer afterwards, so a failure is never silent.
+
+> The older Postgres-side route (`public.set_setting('service_role_key', …)` plus
+> a trigger on `invites`) still exists from `0003` and is harmless, but it cannot
+> beat Supabase's own delivery limits. Prefer `RESEND_API_KEY`, or configure
+> **Authentication → Emails → SMTP Settings** and set
+> `SUPABASE_SERVICE_ROLE_KEY` — see `docs/EMAIL.md`.
+
+---
+
+### Database update for this build
+
+The task-hours feature needs migration **`0011_task_plans.sql`** (a `task_plans`
+table, its policies, and two functions). It is idempotent — run it in **SQL
+Editor → New query** like the others. Without it the app still loads: the
+planning button says the feature is unavailable and the team view simply shows
+no task bars, instead of failing a page.
 
 ---
 

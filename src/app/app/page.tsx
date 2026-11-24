@@ -13,6 +13,7 @@ import { countdownLabel, dueDateOf, dueLabel, nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { assigneesOf, isAdminRole } from "@/lib/types";
 import { foldWeeklyDefaults, hoursFromStates } from "@/lib/availability";
+import type { PlannedBlock } from "@/lib/types";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -69,6 +70,21 @@ export default async function DashboardPage({
    * while the members' own calendars look full.
    */
   const availability = foldWeeklyDefaults(weeklyDefaults, memberIds, dates, storedAvailability);
+
+  /*
+   * Planned blocks for the visible week, resolved against the tasks once so the
+   * grid can paint "Landing page" on a bar instead of asking who each task
+   * belongs to, per cell.
+   */
+  const rawPlans = await store.listTaskPlans(orgId, { userIds: memberIds, dates });
+  const plannedBlocks: PlannedBlock[] = rawPlans
+    .map((plan) => {
+      const task = tasks.find((t) => t.id === plan.taskId);
+      return task
+        ? { ...plan, taskTitle: task.title, taskStatus: task.status }
+        : null;
+    })
+    .filter((plan): plan is PlannedBlock => Boolean(plan));
 
   /* The team-slot view shows one day; ?day= picks it, anything off-list is today. */
   const selectedDay = params.day && dates.includes(params.day) ? params.day : dates[0];
@@ -142,6 +158,7 @@ export default async function DashboardPage({
         <TeamSlotGrid
           members={freelancers}
           availability={availability}
+          plans={plannedBlocks}
           date={selectedDay}
           dates={dates}
           today={dates[0]}

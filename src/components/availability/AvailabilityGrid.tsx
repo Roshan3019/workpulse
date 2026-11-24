@@ -291,8 +291,23 @@ export function AvailabilityGrid({
         )}
       </div>
 
-      {isEmptyWeek && editable ? (
-        <div className="mb-3 rounded-xl border border-brand-line bg-brand-soft px-3.5 py-2.5 text-[12.5px] leading-relaxed font-semibold text-brand-dark">
+      {/*
+        The hint keeps its place once the week stops being empty.
+        It used to be removed the moment the first cell was painted, which
+        pulled the whole grid up by the height of the banner — the grid jumped
+        exactly when the client was aiming at it. Now the box stays in the
+        layout and only its ink disappears (visibility, not display), so the
+        first painted cell never moves a row under the pointer.
+      */}
+      {editable ? (
+        <div
+          aria-hidden={!isEmptyWeek}
+          className={`mb-3 rounded-xl border px-3.5 py-2.5 text-[12.5px] leading-relaxed font-semibold text-brand-dark ${
+            isEmptyWeek
+              ? "border-brand-line bg-brand-soft"
+              : "invisible border-transparent bg-transparent"
+          }`}
+        >
           Pick <b>Free</b>, <b>Busy</b> or <b>Unassigned</b> above, then drag across the hours.
         </div>
       ) : null}

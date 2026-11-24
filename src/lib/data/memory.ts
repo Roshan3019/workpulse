@@ -15,13 +15,15 @@ import type {
   Profile,
   SlotState,
   Task,
+  TaskPlan,
   Team,
   WeeklyDefault,
 } from "../types";
 import { hoursFromStates, normaliseWeeklyDefault, statesFromHours } from "../availability";
+import { busyStatesForPlans, normaliseBlocks } from "../plans";
 import { PLANS, assigneesOf } from "../types";
 import { seedMemory, type MemoryDatabase } from "./types";
-import type { DataStore, InviteLookup, TaskFilters } from "./types";
+import type { DataStore, InviteLookup, PlanBlockInput, TaskFilters, TaskPlanFilters } from "./types";
 
 /**
  * In-memory store used by demo mode. Kept on globalThis so Next's dev
@@ -466,6 +468,84 @@ export class MemoryStore implements DataStore {
     const clean = normaliseWeeklyDefault(week);
     if (Object.keys(clean).length) db().weeklyDefaults[key] = clean;
     else delete db().weeklyDefaults[key];
+  }
+
+  /* ----------------------------- task plans ----------------------------- */
+
+  async listTaskPlans(orgId: string, filters: TaskPlanFilters = {}): Promise<TaskPlan[]> {
+    const dates = filters.dates ? new Set(filters.dates) : null;
+    const users = filters.userIds ? new Set(filters.userIds) : null;
+    const tasks = filters.taskIds ? new Set(filters.taskIds) : null;
+    return db()
+      .taskPlans.filter(
+        (p) =>
+          p.orgId === orgId &&
+          (!dates || dates.has(p.date)) &&
+          (!users || users.has(p.userId)) &&
+          (!tasks || tasks.has(p.taskId)),
+      )
+      .sort((a, b) => a.date.localeCompare(b.date) || a.startHour - b.startHour)
+      .map((p) => ({ ...p }));
+  }
+
+  async setTaskPlan(
+    orgId: string,
+    input: { taskId: string; userId: string; date: string; blocks: PlanBlockInput[] },
+  ): Promise<void> {
+    const d = db();
+    const membership = d.memberships.find((m) => m.orgId === orgId && m.userId === input.userId);
+    if (!membership) throw new Error("Not a member of this organization");
+
+    const task = d.tasks.find((t) => t.orgId === orgId && t.id === input.taskId);
+    if (!task) throw new Error("Task not found");
+    if (!assigneesOf(task).includes(input.userId)) {
+      throw new Error("Only someone on the task can plan hours for it");
+    }
+
+    // One day of one task is replaced wholesale, so a drag that split or merged
+    // a block cannot leave a stale half behind.
+    d.taskPlans = d.taskPlans.filter(
+      (p) =>
+        !(
+          p.orgId === orgId &&
+          p.taskId === input.taskId &&
+          p.userId === input.userId &&
+          p.date === input.date
+        ),
+    );
+
+    const blocks = normaliseBlocks(
+      input.blocks.map((b) => ({ ...b, date: input.date, minutes: Number(b.minutes) || 0 })),
+    ).filter((b) => b.endHour > b.startHour);
+
+    for (const block of blocks) {
+      d.taskPlans.push({
+        id: randomUUID(),
+        orgId,
+        taskId: input.taskId,
+        userId: input.userId,
+        date: input.date,
+        startHour: block.startHour,
+        endHour: block.endHour,
+        minutes: block.minutes,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Planning hours is saying "I'm busy then" — mirror it into availability so
+    // the member's calendar and the admin's team view cannot disagree.
+    if (blocks.length) {
+      const key = `${orgId}:${input.userId}`;
+      const existing = d.availabilityStates[key] ?? (d.availabilityStates[key] = {});
+      const merged = busyStatesForPlans(blocks, existing);
+      for (const [date, states] of Object.entries(merged)) {
+        existing[date] = states;
+        const legacy = (d.availability[key] ??= {});
+        const hours = hoursFromStates(states);
+        if (hours.length) legacy[date] = hours;
+        else delete legacy[date];
+      }
+    }
   }
 
   async listInvites(orgId: string): Promise<Invite[]> {

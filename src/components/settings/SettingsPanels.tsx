@@ -69,11 +69,19 @@ export function InvitePanel({
   seatsUsed,
   seatLimit,
   canInvite,
+  delivery,
 }: {
   invites: Invite[];
   seatsUsed: number;
   seatLimit: number;
   canInvite: boolean;
+  /**
+   * Which transport invitations will use, decided on the server from env.
+   * Passed in rather than read in the browser because none of these variables
+   * are NEXT_PUBLIC — and because the panel must be able to say "not emailed"
+   * *before* an admin types an address and waits for nothing.
+   */
+  delivery: { mode: "resend" | "brevo" | "supabase" | "none"; label: string; ready: boolean; detail: string };
 }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(async (_prev: ActionResult, formData: FormData) => {
@@ -105,6 +113,24 @@ export function InvitePanel({
           {seatsUsed}/{seatLimit} seats used
         </Badge>
         {full ? <span>Seat limit reached. Upgrade the plan to invite more people.</span> : null}
+      </div>
+
+      {/*
+        The state of email delivery, stated plainly. The previous copy said
+        "emailed (if delivery is configured)", which told an admin nothing after
+        they had waited for an email that was never going to arrive.
+      */}
+      <div
+        className={`flex flex-wrap items-start gap-2 rounded-xl border px-3.5 py-2.5 text-[12.5px] leading-relaxed ${
+          delivery.ready
+            ? "border-[#bfe9d6] bg-ok-soft text-[#2f6b4a]"
+            : "border-brand-line bg-brand-soft text-brand-dark"
+        }`}
+      >
+        <b className="font-semibold">
+          {delivery.ready ? `Email delivery on · ${delivery.label}` : "Invitations are not emailed yet"}
+        </b>
+        <span className="font-normal">{delivery.detail}</span>
       </div>
 
       {canInvite ? (
@@ -139,8 +165,15 @@ export function InvitePanel({
 
       {state?.error ? <Alert tone="error">{state.error}</Alert> : null}
       {state?.token ? (
-        <div className="rounded-xl border border-[#bfe9d6] bg-ok-soft px-3.5 py-3 text-[13px] text-[#2f6b4a]">
-          <b>Invite ready.</b> <span className="font-normal">{state.message}</span>
+        <div
+          className={`rounded-xl border px-3.5 py-3 text-[13px] ${
+            state.delivered
+              ? "border-[#bfe9d6] bg-ok-soft text-[#2f6b4a]"
+              : "border-brand-line bg-brand-soft text-brand-dark"
+          }`}
+        >
+          <b>{state.delivered ? "Invite emailed." : "Invite created."}</b>{" "}
+          <span className="font-normal">{state.message}</span>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <code className="rounded-lg bg-white px-2 py-1 text-[12px] break-all">{`${origin}/invite/${state.token}`}</code>
             <button type="button" onClick={() => copy(state.token!)} className="rounded-lg bg-white px-2.5 py-1 text-[12px] font-bold text-ok-dark">
