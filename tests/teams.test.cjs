@@ -209,6 +209,79 @@ const OWNER = "11111111-1111-4111-8111-111111111111";
     check("…whose newest membership is the main studio", roster[0]?.orgId === DEMO_ORG_ID, String(roster[0]?.orgId));
   }
 
+  /* ------------------------------------------------------------------ */
+  /* A task's team follows the people on it (round 10)                    */
+  /* ------------------------------------------------------------------ */
+  {
+    const T = loadTs("src/lib/task-teams.ts");
+    // A fresh *database*: MemoryStore shares one globalThis singleton, and
+    // earlier blocks here deliberately break the seeded teams.
+    loadTs("src/lib/data/memory.ts").resetMemoryDatabase();
+    const fresh = new MemoryStore();
+    const [web, brand] = await fresh.listTeams(DEMO_ORG_ID);
+    const inWeb = web.memberIds[0];      // one person, only in Web
+    const inBrand = brand.memberIds[0];  // one person, only in Branding
+
+    const one = T.resolveTaskTeam([web, brand], [inWeb], null);
+    check("one person from Team 1 selects Team 1 by itself", one.teamId === web.id && !one.warning, JSON.stringify(one));
+
+    const forced = T.resolveTaskTeam([web, brand], [inWeb], brand.id);
+    check("forcing Team 2 with a Team 1 person warns", forced.teamId === brand.id && Boolean(forced.warning));
+    check("…and the warning names the team", (forced.warning ?? "").includes(brand.name), String(forced.warning));
+
+    const sameTeam = T.resolveTaskTeam([web, brand], [inWeb, web.memberIds[1]], null);
+    check("two people who share a team resolve to it silently", sameTeam.teamId === web.id && !sameTeam.warning);
+
+    const spread = T.resolveTaskTeam([web, brand], [inWeb, inBrand], brand.id);
+    check("a cross-team task keeps the chosen team but says who is outside it", spread.teamId === brand.id && /not in/.test(spread.warning ?? ""));
+
+    const undecided = T.resolveTaskTeam([web, brand], [inWeb, inBrand], null);
+    check("cross-team with no team chosen asks instead of guessing", undecided.teamId === null && /different teams/.test(undecided.warning ?? ""));
+
+    check("a person on no team leaves the task studio-wide", T.resolveTaskTeam([web, brand], ["aaaaaaaa-1111-4111-8111-111111111111"], null).teamId === null);
+
+    /* The store round trip the dialog relies on. */
+    const saved = await fresh.createTask(
+      DEMO_ORG_ID,
+      {
+        title: "Shared task",
+        client: "Qween",
+        description: null,
+        assigneeId: inWeb,
+        assigneeIds: [inWeb, web.memberIds[1]],
+        estHours: 6,
+        progress: 0,
+        status: "pending",
+        priority: "medium",
+        deadline: null,
+        startDate: null,
+        dueTime: null,
+        teamId: T.resolveTaskTeam([web, brand], [inWeb, web.memberIds[1]], null).teamId,
+      },
+      DEMO_USERS[0].id,
+    );
+    check("a shared task keeps its team", saved.teamId === web.id, String(saved.teamId));
+    check("…and both people are on it", (saved.assigneeIds ?? []).length === 2);
+
+    const mine = await fresh.listTasks(DEMO_ORG_ID, { onlyForUser: web.memberIds[1] });
+    check("…so it shows in the second person's own list", mine.some((t) => t.id === saved.id));
+    const onTeam = await fresh.listTasks(DEMO_ORG_ID, { teamId: web.id });
+    check("…and in the team view", onTeam.some((t) => t.id === saved.id));
+
+    const assignees = loadTs("src/lib/types.ts").assigneesOf;
+    check("assigneesOf falls back to the lead for old rows", assignees({ assigneeId: inWeb }).length === 1);
+    check("assigneesOf prefers the full list", assignees({ assigneeId: inBrand, assigneeIds: [inWeb, inBrand] }).length === 2);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Free plan seats (round 10)                                          */
+  /* ------------------------------------------------------------------ */
+  {
+    const { PLANS } = loadTs("src/lib/types.ts");
+    check("free plan covers 10 seats for now", PLANS.free.seats === 10, String(PLANS.free.seats));
+    check("…and its blurb says so", PLANS.free.features[0].includes("10"));
+  }
+
 
   /* --------------------- weekly default (read-time) -------------------- */
   {

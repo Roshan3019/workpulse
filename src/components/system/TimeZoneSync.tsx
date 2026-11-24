@@ -31,7 +31,14 @@ export function TimeZoneSync() {
         ?.split("=")[1];
       if (existing !== encodeURIComponent(tz)) {
         document.cookie = `${TZ_COOKIE}=${encodeURIComponent(tz)}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
-        router.refresh();
+        /*
+         * Only refresh when the *server* might actually be wrong, i.e. when it
+         * had no opinion yet. The cookie is written before this render, so a
+         * second visit already agrees and this never fires again — refreshing
+         * unconditionally would re-run the whole page render right after a
+         * correct one, which is a second of work for nothing on first load.
+         */
+        if (!existing) router.refresh();
       }
     }
 

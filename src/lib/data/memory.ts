@@ -19,7 +19,7 @@ import type {
   WeeklyDefault,
 } from "../types";
 import { hoursFromStates, normaliseWeeklyDefault, statesFromHours } from "../availability";
-import { PLANS } from "../types";
+import { PLANS, assigneesOf } from "../types";
 import { seedMemory, type MemoryDatabase } from "./types";
 import type { DataStore, InviteLookup, TaskFilters } from "./types";
 
@@ -150,8 +150,13 @@ export class MemoryStore implements DataStore {
 
   async listTasks(orgId: string, filters: TaskFilters = {}): Promise<Task[]> {
     let rows = db().tasks.filter((t) => t.orgId === orgId);
-    if (filters.onlyForUser) rows = rows.filter((t) => t.assigneeId === filters.onlyForUser);
-    if (filters.assigneeId) rows = rows.filter((t) => t.assigneeId === filters.assigneeId);
+    /*
+     * "Assigned to me" means on the task, not only the lead. A shared task has
+     * more than one person on it, and both of them must see it in their own
+     * list — that is the whole point of assigning it to two people.
+     */
+    if (filters.onlyForUser) rows = rows.filter((t) => assigneesOf(t).includes(filters.onlyForUser!));
+    if (filters.assigneeId) rows = rows.filter((t) => assigneesOf(t).includes(filters.assigneeId!));
     if (filters.teamId) rows = rows.filter((t) => t.teamId === filters.teamId);
     if (filters.status && filters.status !== "all") rows = rows.filter((t) => t.status === filters.status);
     if (filters.search) {

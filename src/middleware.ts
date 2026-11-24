@@ -35,6 +35,24 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  /*
+   * Only the routes that actually read the session pay for resolving it.
+   *
+   * `auth.getUser()` is a network call to Supabase. Running it on the marketing
+   * page, the login form or a static asset's 404 adds ~50–150ms to a first
+   * visit and to every image request — for a result nobody reads.
+   */
+  const needsSession =
+    pathname.startsWith("/app") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/invite") ||
+    pathname.startsWith("/join") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname === "/";
+  if (!needsSession) return NextResponse.next({ request });
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(env.supabaseUrl, env.supabaseAnonKey, {

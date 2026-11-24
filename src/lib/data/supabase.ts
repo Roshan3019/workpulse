@@ -1,6 +1,7 @@
 import "server-only";
 import { createSupabaseServerClient } from "../supabase/server";
 import { hoursFromStates, normaliseStates, normaliseWeeklyDefault } from "../availability";
+import { assigneesOf } from "../types";
 import type {
   AvailabilityMap,
   AvailabilityStates,
@@ -54,6 +55,12 @@ const taskFromRow = (r: Row): Task => ({
   client: r.client ?? "",
   description: r.description,
   assigneeId: r.assignee_id,
+  /*
+   * Everyone on the task comes from `task_assignees` (0009). Older rows have
+   * no join rows at all, so `assigneeId` remains the fallback and the two never
+   * disagree: the action always writes both.
+   */
+  assigneeIds: mergeAssignees(r.assignee_id, r.task_assignees),
   estHours: Number(r.est_hours),
   progress: r.progress,
   status: r.status,
@@ -64,6 +71,23 @@ const taskFromRow = (r: Row): Task => ({
   teamId: r.team_id ?? null,
   createdAt: r.created_at,
 });
+
+/**
+ * One canonical assignee list. The lead column is always first, and the join
+ * rows are merged in after it without duplicates.
+ */
+function mergeAssignees(lead: string | null, rows: unknown): string[] {
+  const joined = Array.isArray(rows)
+    ? (rows as { user_id?: string; position?: number }[])
+        .slice()
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+        .map((row) => row.user_id)
+        .filter((id): id is string => Boolean(id))
+    : [];
+  const out: string[] = [];
+  for (const id of [lead, ...joined]) if (id && !out.includes(id)) out.push(id);
+  return out;
+}
 
 const teamFromRow = (r: Row): Team => ({
   id: r.id,
@@ -220,9 +244,26 @@ export class SupabaseStore implements DataStore {
 
   async listTasks(orgId: string, filters: TaskFilters = {}): Promise<Task[]> {
     const sb = await this.sb();
-    let q = sb.from("tasks").select("*").eq("org_id", orgId);
-    if (filters.onlyForUser) q = q.eq("assignee_id", filters.onlyForUser);
-    if (filters.assigneeId) q = q.eq("assignee_id", filters.assigneeId);
+    let q = sb
+      .from("tasks")
+      .select("*, task_assignees(user_id, position)")
+      .eq("org_id", orgId);
+    /*
+     * A person filter has to match *any* assignee, not just the lead. Asking
+     * the database for it twice — once against the join table, once against
+     * `assignee_id` for rows written before 0009 — then merging would cost two
+     * round trips; instead the join rows are filtered server-side and the lead
+     * is checked in memory below (the row set is one org's tasks).
+     */
+    if (filters.onlyForUser || filters.assigneeId) {
+      const person = (filters.onlyForUser ?? filters.assigneeId)!;
+      /*
+       * One query, not two: the lead column and the join table are checked in
+       * the same filter, so "my tasks" costs one round trip whether the task
+       * was written before or after multi-assign existed.
+       */
+      q = q.or(`assignee_id.eq.${person},task_assignees.user_id.eq.${person}`);
+    }
     if (filters.teamId) q = q.eq("team_id", filters.teamId);
     if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
     if (filters.search) q = q.or(`title.ilike.%${filters.search}%,client.ilike.%${filters.search}%`);
@@ -252,12 +293,35 @@ export class SupabaseStore implements DataStore {
         deadline: input.deadline ?? null,
         start_date: input.startDate ?? null,
         due_time: input.dueTime ?? null,
+        team_id: input.teamId ?? null,
         created_by: actorId,
       })
       .select("*")
       .single();
     fail(error, "create task");
-    return taskFromRow(data as Row);
+    await this.setTaskAssignees(orgId, (data as Row).id as string, assigneesOf(input));
+    const created = await sb
+      .from("tasks")
+      .select("*, task_assignees(user_id, position)")
+      .eq("id", (data as Row).id as string)
+      .single();
+    return taskFromRow((created.data ?? data) as Row);
+  }
+
+  /**
+   * Replace who is on a task. Ordered, so the lead (position 0) stays the
+   * person shown first on every card.
+   */
+  private async setTaskAssignees(orgId: string, taskId: string, userIds: string[]): Promise<void> {
+    const sb = await this.sb();
+    const clean = [...new Set(userIds.filter(Boolean))];
+    if (!clean.length) return;
+    const { error: clearError } = await sb.from("task_assignees").delete().eq("task_id", taskId);
+    fail(clearError, "clear assignments");
+    const { error } = await sb.from("task_assignees").insert(
+      clean.map((userId, position) => ({ org_id: orgId, task_id: taskId, user_id: userId, position })),
+    );
+    fail(error, "save assignments");
   }
 
   async updateTask(orgId: string, taskId: string, patch: Partial<Task>): Promise<void> {
@@ -274,8 +338,13 @@ export class SupabaseStore implements DataStore {
     if (patch.deadline !== undefined) update.deadline = patch.deadline;
     if (patch.startDate !== undefined) update.start_date = patch.startDate;
     if (patch.dueTime !== undefined) update.due_time = patch.dueTime;
+    // Was missing: a task's team could never change after creation.
+    if (patch.teamId !== undefined) update.team_id = patch.teamId;
     const { error } = await sb.from("tasks").update(update).eq("id", taskId).eq("org_id", orgId);
     fail(error, "update task");
+    if (patch.assigneeIds !== undefined) {
+      await this.setTaskAssignees(orgId, taskId, patch.assigneeIds);
+    }
   }
 
   async deleteTask(orgId: string, taskId: string): Promise<void> {

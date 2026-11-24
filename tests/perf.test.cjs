@@ -135,6 +135,44 @@ check("request cache never wraps a mutation", () => {
 /* -------------------------------------------------------------------------- */
 /* 4. Loading skeletons                                                       */
 /* -------------------------------------------------------------------------- */
+check("the store is built once per request, not once per query", () => {
+  /*
+   * Every page calls getStore() several times (session, layout, each query).
+   * Without React's cache() that is a Supabase client — and a cookie read —
+   * per call.
+   */
+  const src = read("src/lib/data/index.ts");
+  assert(/export const getStore = cache\(/.test(src), "getStore is not memoised per request");
+  return "cache()";
+});
+
+check("the middleware only resolves the session where it is read", () => {
+  const src = read("src/middleware.ts");
+  assert(/needsSession/.test(src), "the proxy resolves auth for every request, including public pages");
+  assert(
+    /if \(!needsSession\) return NextResponse\.next/.test(src),
+    "public routes still pay for a Supabase auth round trip",
+  );
+  return "public routes skip auth.getUser()";
+});
+
+check("the client bundle is not shipped uncompressed or with source maps", () => {
+  const src = read("next.config.ts");
+  assert(/compress: true/.test(src), "compress is off");
+  assert(/productionBrowserSourceMaps: false/.test(src), "browser source maps are published");
+  return "compress on, maps off";
+});
+
+check("the root /app skeleton covers the dashboards, not just one route", () => {
+  const src = read("src/app/app/loading.tsx");
+  assert(/skeleton/i.test(src), "loading.tsx does not render a skeleton");
+  assert(
+    !/SkeletonCards/.test(src) || /h-5[0-9]/.test(src),
+    "the loading shell is a generic stack rather than the dashboard's shape",
+  );
+  return "/app/loading.tsx";
+});
+
 check("every /app route ships a loading skeleton", () => {
   const routes = ["", "tasks", "team", "availability", "settings", "my-tasks"];
   const missing = routes.filter(

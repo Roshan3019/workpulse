@@ -1,4 +1,4 @@
-import type { AvailabilityMap, Member, Task } from "./types";
+import { assigneesOf, type AvailabilityMap, type Member, type Task } from "./types";
 import { hoursToRanges, nextDates } from "./dates";
 
 export type Utilisation = "available" | "balanced" | "busy" | "overloaded";
@@ -38,7 +38,12 @@ export function stateFor(utilisation: number): Utilisation {
 export function computeWorkload(members: Member[], tasks: Task[]): MemberWorkload[] {
   return members
     .map((member) => {
-      const open = tasks.filter((t) => t.assigneeId === member.userId && t.status !== "done");
+      /*
+       * A shared task counts against everyone on it. Splitting the estimate
+       * would be guesswork — the honest reading is "this person has these open
+       * hours coming", whoever else is also on them.
+       */
+      const open = tasks.filter((t) => assigneesOf(t).includes(member.userId) && t.status !== "done");
       const assignedHours = open.reduce((sum, t) => sum + Number(t.estHours || 0), 0);
       const capacity = member.capacity || 40;
       const utilisation = capacity > 0 ? Math.round((assignedHours / capacity) * 100) : 0;

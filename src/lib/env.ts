@@ -20,4 +20,10 @@ export const env = {
 };
 
 export const DEMO_COOKIE = "wp_demo_user";
+/**
+ * @deprecated No longer read. A session opens the studio it most recently
+ * joined (see lib/session.ts); the multi-studio switcher was removed at the
+ * client's request, so there is nothing to switch. The value is still cleared
+ * on sign-out so an old cookie cannot linger.
+ */
 export const ORG_COOKIE = "wp_org";

@@ -6,7 +6,7 @@ import { createOrganizationAction } from "@/lib/actions/org";
 import { getStore } from "@/lib/data";
 import { getAuthContext } from "@/lib/session";
 import { env } from "@/lib/env";
-import { isAdminRole } from "@/lib/types";
+import { PLANS, isAdminRole } from "@/lib/types";
 
 export const metadata = { title: "Welcome to WorkPulse" };
 
@@ -35,7 +35,7 @@ const ADMIN_TOUR = [
   {
     icon: "👥",
     title: "Invite your crew",
-    body: "Send an invite link tied to an email address. Seats follow your plan; free includes 5.",
+    body: `Send an invite link tied to an email address. Seats follow your plan; free includes ${PLANS.free.seats}.`,
     href: "/app/settings",
     cta: "Invite teammates",
   },
@@ -58,9 +58,30 @@ const MEMBER_TOUR = [
   },
 ];
 
-export default async function OnboardingPage() {
+/**
+ * Where the visitor came from decides what onboarding offers.
+ *
+ *   arriving through an invite or a join link → only ever the invited studio:
+ *     wait for approval, or (once approved) land in it. Never "make your own".
+ *   arriving on their own → their own studio, and only that.
+ *
+ * A query param records the route. It is a *hint*, not a security decision —
+ * the database still decides what anyone can see — but it is what stops a
+ * person who followed a link from being shown a create-a-studio form that has
+ * nothing to do with why they are here.
+ */
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ waiting?: string; via?: string; next?: string }>;
+}) {
+  const params = await searchParams;
+  const viaLink = params.via === "invite" || params.via === "join" || params.waiting === "1";
   const ctx = await getAuthContext();
-  if (!ctx) redirect("/login");
+  if (!ctx) {
+    const next = params.next ?? (viaLink ? "/onboarding?via=join" : "/onboarding");
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
 
   /*
    * Waiting on a studio you already asked to join.
@@ -123,7 +144,47 @@ export default async function OnboardingPage() {
     );
   }
 
-  // Signed in but no workspace yet → the real onboarding flow.
+  /*
+   * Came here from a link, but has no studio to show for it.
+   *
+   * Either the request is still with an admin (handled above), it was declined,
+   * or the invite was used already. In all three cases the answer is *not*
+   * "start your own studio" — that produces exactly the account that then owns
+   * an empty workspace and wonders why it never got into the one that invited
+   * it. Send them back to the link, or explain the wait.
+   */
+  if (!ctx.membership && viaLink) {
+    return (
+      <div className="min-h-screen">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
+          <Logo />
+        </div>
+        <main className="mx-auto max-w-lg px-5 py-10">
+          <div className="card p-6 sm:p-8">
+            <Badge tone="amber">Nothing to do yet</Badge>
+            <h1 className="mt-3 text-[24px] font-semibold tracking-[-0.02em]">
+              You&apos;re not in a studio yet
+            </h1>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
+              You followed an invitation, so this account joins a studio that already exists — you
+              don&apos;t need to create one. If you asked to join, their admin still has to approve it.
+              If you were invited by email, open the link in that email again.
+            </p>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <Link href="/app" className="btn-primary flex-1 py-2.5 text-center">
+                Check again
+              </Link>
+              <Link href="/" className="btn-outline flex-1 py-2.5 text-center">
+                Back to site
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Signed in but no workspace yet → they came on their own, so this is theirs.
   if (!ctx.membership) {
     return (
       <div className="min-h-screen">
@@ -136,7 +197,9 @@ export default async function OnboardingPage() {
             <p className="label">Step 1 of 1</p>
             <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.02em]">Name your workspace</h1>
             <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
-              This is your team&apos;s home in WorkPulse. You&apos;ll be the owner. You can rename it later.
+              This is your team&apos;s home in WorkPulse, and you&apos;ll be the owner. You can rename it
+              later. (If you meant to join someone else&apos;s studio, use the link they sent you — you
+              don&apos;t need your own for that.)
             </p>
 
             <form

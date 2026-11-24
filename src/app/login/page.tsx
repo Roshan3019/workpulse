@@ -16,7 +16,8 @@ type LoginSearchParams = Promise<{ next?: string; error?: string }>;
 export default async function LoginPage({ searchParams }: { searchParams: LoginSearchParams }) {
   const sp = await searchParams;
   const ctx = await getAuthContext();
-  if (ctx) redirect(ctx.membership ? "/app" : "/onboarding");
+  /* Signed in but studio-less: they came here directly, so this is the create-your-own path. */
+  if (ctx) redirect(ctx.membership ? "/app" : "/onboarding?via=direct");
 
   // Only same-site relative paths, so ?next= can't be used as an open redirect.
   const next = sp.next?.startsWith("/") && !sp.next.startsWith("//") ? sp.next : "/app";

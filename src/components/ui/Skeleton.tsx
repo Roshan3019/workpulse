@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 export function Skeleton({ className = "" }: { className?: string }) {
   return (
     <div
-      className={`animate-pulse rounded-lg bg-[#e8eaf3] motion-reduce:animate-none ${className}`}
+      className={`animate-pulse rounded-lg bg-[#eeeae3] motion-reduce:animate-none ${className}`}
       aria-hidden="true"
     />
   );

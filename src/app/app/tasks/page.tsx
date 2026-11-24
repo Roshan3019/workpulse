@@ -6,7 +6,7 @@ import { getStore } from "@/lib/data";
 import { orgMembers } from "@/lib/data/request-cache";
 import { countdownLabel, dueDateOf, dueLabel } from "@/lib/dates";
 import { requireSession } from "@/lib/session";
-import { STATUS_LABEL, isAdminRole, type TaskPriority } from "@/lib/types";
+import { STATUS_LABEL, assigneesOf, isAdminRole, type TaskPriority } from "@/lib/types";
 
 export const metadata = { title: "All tasks" };
 export const dynamic = "force-dynamic";
@@ -55,7 +55,7 @@ export default async function TasksPage({
   const filtered = allTasks.filter(
     (t) =>
       (!team || t.teamId === team.id) &&
-      (!assigneeId || t.assigneeId === assigneeId) &&
+      (!assigneeId || assigneesOf(t).includes(assigneeId)) &&
       (!status || t.status === status) &&
       (!search ||
         t.title.toLowerCase().includes(search) ||
@@ -126,7 +126,13 @@ export default async function TasksPage({
       ) : (
         <div className="space-y-3">
           {filtered.map((task) => {
-            const assignee = members.find((m) => m.userId === task.assigneeId);
+            /*
+             * A task can be shared. Show everyone on it — the old single
+             * avatar is why a two-person task looked like one person's job.
+             */
+            const assigned = assigneesOf(task)
+              .map((id) => members.find((m) => m.userId === id))
+              .filter((m): m is NonNullable<typeof m> => Boolean(m));
             const overdue =
               Boolean(task.deadline) &&
               task.status !== "done" &&
@@ -154,11 +160,21 @@ export default async function TasksPage({
                   ) : null}
                 </div>
 
-                <div className="flex items-center gap-2.5">
-                  {assignee ? (
+                <div className="flex min-w-0 items-center gap-2">
+                  {assigned.length ? (
                     <>
-                      <Avatar id={assignee.userId} name={assignee.profile.fullName} email={assignee.profile.email} size={30} />
-                      <span className="truncate text-[13.5px] font-semibold">{assignee.profile.fullName ?? "Unnamed"}</span>
+                      <div className="flex shrink-0 -space-x-1.5">
+                        {assigned.slice(0, 3).map((m) => (
+                          <span key={m.userId} className="ring-2 ring-white rounded-full">
+                            <Avatar id={m.userId} name={m.profile.fullName} email={m.profile.email} size={28} />
+                          </span>
+                        ))}
+                      </div>
+                      <span className="min-w-0 truncate text-[13px] font-semibold">
+                        {assigned.length === 1
+                          ? (assigned[0].profile.fullName ?? "Unnamed")
+                          : `${assigned[0].profile.fullName ?? "Unnamed"} +${assigned.length - 1}`}
+                      </span>
                     </>
                   ) : (
                     <span className="text-[13px] text-faint">Unassigned</span>
@@ -171,8 +187,12 @@ export default async function TasksPage({
                     <span>{task.estHours}h</span>
                   </div>
                   <ProgressBar value={task.progress} />
-                  {assignee ? (
-                    <div className="mt-1 truncate text-[11.5px] text-faint">capacity {assignee.capacity}h/wk</div>
+                  {assigned.length === 1 ? (
+                    <div className="mt-1 truncate text-[11.5px] text-faint">capacity {assigned[0].capacity}h/wk</div>
+                  ) : assigned.length > 1 ? (
+                    <div className="mt-1 truncate text-[11.5px] text-faint">
+                      shared by {assigned.length} · {task.estHours}h total
+                    </div>
                   ) : null}
                 </div>
 

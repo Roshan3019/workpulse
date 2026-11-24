@@ -2,10 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
-import { env, ORG_COOKIE } from "../env";
+import { env } from "../env";
 import { getStore, memoryStore } from "../data";
-import { getAuthContext, getOrgMemberships, requireAdmin } from "../session";
+import { getAuthContext, requireAdmin } from "../session";
 import { createSupabaseServerClient } from "../supabase/server";
 import { inviteSchema, orgSchema, planSchema } from "../validation";
 import { PLANS, type PlanTier } from "../types";
@@ -42,8 +41,6 @@ export async function createOrganizationAction(formData: FormData): Promise<Acti
       } else if (membership.role !== "owner") {
         await store.updateMemberRole(org.id, membership.id, "owner");
       }
-      const cookieStore = await cookies();
-      cookieStore.set(ORG_COOKIE, org.id, { path: "/", sameSite: "lax" });
     }
     revalidatePath("/", "layout");
     redirect("/app");
@@ -55,13 +52,11 @@ export async function createOrganizationAction(formData: FormData): Promise<Acti
   const { data, error } = await supabase.rpc("create_organization", { org_name: parsed.data.name });
   if (error) return { error: error.message };
 
-  // Remember the choice: an account in several studios must open the one it
-  // just made, not whichever membership happens to sort first.
-  if (data) {
-    const cookieStore = await cookies();
-    cookieStore.set(ORG_COOKIE, String(data), { path: "/", sameSite: "lax" });
-  }
-
+  /*
+   * No cookie: the studio a session opens is decided by membership order (see
+   * lib/session.ts). A brand-new account has exactly one membership, so it
+   * opens the studio it just made.
+   */
   revalidatePath("/", "layout");
   redirect("/app");
 }
@@ -170,10 +165,12 @@ export async function acceptInviteAction(token: string): Promise<ActionResult> {
   const { data, error } = await supabase.rpc("accept_invite", { invite_token: token });
   if (error) return { error: error.message };
 
-  if (data) {
-    const cookieStore = await cookies();
-    cookieStore.set(ORG_COOKIE, String(data), { path: "/", sameSite: "lax" });
-  }
+  /*
+   * Accepting an invite is the newest membership this account has, so the
+   * session resolver opens the inviting studio without needing a cookie —
+   * which is exactly what "a join link only ever shows the joined studio"
+   * means in practice.
+   */
   revalidatePath("/", "layout");
   redirect("/app");
 }
@@ -197,21 +194,4 @@ export async function transferOwnershipAction(userId: string): Promise<ActionRes
   if (error) return { error: error.message };
   revalidatePath("/app", "layout");
   return { ok: true, message: "Ownership transferred." };
-}
-
-/**
- * Switch which studio this account is looking at.
- *
- * The id is checked against the caller's own memberships first: the cookie is
- * signed-in state, but it must never be a way to ask for an org someone does
- * not belong to.
- */
-export async function switchOrgAction(orgId: string): Promise<void> {
-  const orgs = await getOrgMemberships();
-  if (!orgs.some((org) => org.id === orgId)) redirect("/app");
-
-  const cookieStore = await cookies();
-  cookieStore.set(ORG_COOKIE, orgId, { path: "/", sameSite: "lax" });
-  revalidatePath("/", "layout");
-  redirect("/app");
 }

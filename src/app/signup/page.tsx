@@ -5,6 +5,7 @@ import { Badge, Logo } from "@/components/ui";
 import { demoSignIn } from "@/lib/actions/auth";
 import { env } from "@/lib/env";
 import { getAuthContext } from "@/lib/session";
+import { PLANS } from "@/lib/types";
 
 export const metadata = { title: "Create your workspace" };
 
@@ -16,7 +17,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Signu
 
   // Invited visitors arrive with ?next=/invite/<token>; always send them back there.
   const next = sp.next?.startsWith("/") && !sp.next.startsWith("//") ? sp.next : "/app";
-  if (ctx) redirect(next !== "/app" ? next : ctx.membership ? "/app" : "/onboarding");
+  if (ctx) redirect(next !== "/app" ? next : ctx.membership ? "/app" : "/onboarding?via=direct");
 
   return (
     <div className="min-h-screen">
@@ -29,7 +30,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Signu
 
       <main className="mx-auto grid max-w-6xl items-start gap-10 px-5 py-8 lg:grid-cols-[1.05fr_.95fr] lg:py-14">
         <div className="hidden lg:block">
-          <Badge tone="indigo">Free for up to 5 seats</Badge>
+          <Badge tone="indigo">Free for up to {PLANS.free.seats} seats</Badge>
           <h1 className="mt-5 text-[40px] leading-[1.08] font-semibold tracking-[-0.025em]">
             Set up your team in about two minutes.
           </h1>

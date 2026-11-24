@@ -35,7 +35,14 @@ export const taskSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(160),
   client: z.string().trim().max(120).default(""),
   description: z.string().trim().max(4000).optional().default(""),
-  assigneeId: z.string().uuid("Pick a team member"),
+  /**
+   * Multi-assign. The form posts `assigneeIds` (repeated checkboxes / chips);
+   * `assigneeId` is still accepted alone so older callers keep working. At
+   * least one person is required — an unassigned task has nobody to show up in
+   * "my tasks", which defeats the point of assigning it.
+   */
+  assigneeIds: z.array(z.string().uuid()).max(25, "At most 25 people on one task").optional(),
+  assigneeId: z.string().uuid().optional(),
   estHours: z.coerce.number().min(0.25, "Minimum 0.25h").max(500, "Maximum 500h"),
   progress: z.coerce.number().int().min(0).max(100).default(0),
   status: z.enum(["pending", "in_progress", "done"]).default("pending"),
@@ -47,8 +54,14 @@ export const taskSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Pick a valid time")
     .nullable()
     .optional(),
-  /** Empty string or "none" means studio-wide; the action normalises it to null. */
-  teamId: z.union([z.string().uuid(), z.literal(""), z.literal("none")]).nullable().optional(),
+  /**
+   * Empty string = nothing chosen (derive the team from the assignees);
+   * "none"/"studio-wide" = deliberately studio-wide; a uuid = that team.
+   */
+  teamId: z
+    .union([z.string().uuid(), z.literal(""), z.literal("none"), z.literal("studio-wide")])
+    .nullable()
+    .optional(),
 });
 
 export const memberProgressSchema = z.object({

@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { env, DEMO_COOKIE, ORG_COOKIE } from "./env";
+import { env, DEMO_COOKIE } from "./env";
 import { TZ_COOKIE } from "./dates";
 import { getStore, memoryStore } from "./data";
 import { DEMO_ORG_ID } from "./data/types";
@@ -25,6 +25,25 @@ export interface AuthContext {
  * session; without this every page performed the whole user → profile →
  * memberships → organisation sequence twice.
  */
+/**
+ * The studio a signed-in account lands in: the one they joined most recently.
+ *
+ * `listOrgsForUser` and `listMembershipsForUser` are two views of the same
+ * rows, so the membership order decides and the org lookup only supplies the
+ * name/plan. An account with no membership gets null — that is the "create your
+ * own studio" case, and it only happens when nobody invited them.
+ */
+async function studioFor(store: ReturnType<typeof getStore>, userId: string): Promise<Organization | null> {
+  const [memberships, orgs] = await Promise.all([
+    store.listMembershipsForUser(userId),
+    store.listOrgsForUser(userId),
+  ]);
+  const newest = [...memberships].sort(
+    (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
+  )[0];
+  return orgs.find((o) => o.id === newest?.orgId) ?? orgs[0] ?? null;
+}
+
 export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   if (env.demoMode) {
     const cookieStore = await cookies();
@@ -34,22 +53,7 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
     if (!demoUser) return null;
 
     const store = getStore();
-    /*
-     * Demo mode can hold more than one studio. Pick the one the cookie points
-     * at, else the most useful one they belong to — never `DEMO_ORG_ID`
-     * blindly, or an account that is not a member of Cinegem would "be" in it.
-     */
-    const preferred = cookieStore.get(ORG_COOKIE)?.value;
-    const memberships = (await store.listMembershipsForUser(userId)).sort(
-      (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
-    );
-    const mine = await store.listOrgsForUser(userId);
-    const organization =
-      mine.find((o) => o.id === preferred) ??
-      /* newest membership wins — same rule as live mode */
-      mine.find((o) => o.id === memberships[0]?.orgId) ??
-      mine[0] ??
-      null;
+    const organization = await studioFor(store, userId);
     const membership = organization ? await store.getMembership(organization.id, userId) : null;
 
     return {
@@ -71,9 +75,6 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
-
-  const cookieStore = await cookies();
-  const preferredOrg = cookieStore.get(ORG_COOKIE)?.value;
 
   /*
    * One round trip instead of three.
@@ -110,19 +111,19 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   }
 
   /*
-   * Which studio this session is in.
+   * Which studio this session is in: **the one they joined most recently.**
    *
-   * An explicit choice (`wp_org`, set by the switcher) always wins. Otherwise
-   * the *most recently joined* membership does — not whatever row PostgREST
-   * happened to return first. That matters when one account owns a studio and
-   * has just been approved into somebody else's: the old `rows[0]` could open
-   * the empty studio it made earlier and read as if it had taken over the
-   * admin dashboard it asked to join.
+   * There is deliberately no switcher and no "pick a studio" state. An account
+   * either created its own studio (no invite, no join link) or was let into
+   * somebody else's; when both happened, the studio they were *invited* to is
+   * the one they came here for, and it is the newest membership — the studio
+   * they made under their own name is older. Opening the old one made an
+   * invited member read as if they had taken over an admin dashboard.
    */
   const rows = [...(membershipResult.data ?? [])].sort(
     (a, b) => new Date(String(b.created_at ?? 0)).getTime() - new Date(String(a.created_at ?? 0)).getTime(),
   );
-  const chosen = rows.find((r) => r.org_id === preferredOrg) ?? rows[0];
+  const chosen = rows[0];
   if (!chosen) {
     return { user: profile, membership: null, organization: null, demo: false };
   }
@@ -164,6 +165,16 @@ export async function requireSession(): Promise<Session> {
   if (!ctx) redirect("/login");
   if (!ctx.membership || !ctx.organization) {
     const waiting = await getStore().listMyJoinRequests(ctx.user.id);
+    /*
+     * Someone with a pending request is waiting on an admin, not short of a
+     * studio to create — that destination says so.
+     *
+     * Everyone else gets plain `/onboarding`, which offers the create form and
+     * a pointer to "if someone invited you, use their link". This function
+     * cannot know how the visitor arrived; the pages that *do* know (the join
+     * page, the invite page, the login form's `next`) pass `?via=` themselves,
+     * and `/onboarding?via=join` refuses to show a create form at all.
+     */
     redirect(waiting.length ? "/onboarding?waiting=1" : "/onboarding");
   }
   return {

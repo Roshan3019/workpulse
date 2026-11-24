@@ -7,7 +7,7 @@ import { PLANS } from "@/lib/types";
 
 export default async function LandingPage() {
   const ctx = await getAuthContext();
-  if (ctx) redirect(ctx.membership ? "/app" : "/onboarding");
+  if (ctx) redirect(ctx.membership ? "/app" : "/onboarding?via=direct");
 
   const features = [
     {

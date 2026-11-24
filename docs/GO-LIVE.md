@@ -241,11 +241,17 @@ Run these in a **private window** so you're signed out:
 | 13 | Open `/onboarding` as that account | it says *waiting for approval*, not "name your workspace" |
 | 14 | Admin **dashboard** → look at the request | the row shows the person's **name and email**, never "No name given" |
 | 15 | Approve it | the inbox clears; the requester's next visit opens the dashboard as a member |
-| 16 | Sign in as an account that belongs to **two studios** | a **Your studios** bar appears; the switcher picks the one you joined last |
+| 16 | Sign in as an account that belongs to **two studios** (one made by hand, one you were invited to) | it opens the studio you **joined last** — no studio switcher anywhere |
+| 17 | Admin → **Assign new task** → tick **two people** from the same team | the **Team** field selects their team by itself; save, then open that team's tab |
+| 18 | In the same dialog, pick somebody from Team 1 and force **Team 2** | an amber warning names the team; saving still works, and the task appears **only** under Team 2 |
+| 19 | Freelancer → **Availability** → *My usual week* → drag across a row | the dragged hours paint; the hour labels (8a–7p) line up with the calendar underneath |
+| 20 | Settings → seats, or a brand-new studio | the free plan covers **10** seats |
 
 If #2 fails → Step 6. If #3 fails → Step 1 (did you run `0003`?). If #4 errors → `0003` again.
 If #9 or #10 fails → did you run **`0006`** and **`0008`**? If #11–#15 fail → **`0007`** and **`0009`**.
 If #14 shows "No name given" the admin simply cannot read the requester's profile: run `0009`.
+If #17 or #18 misbehaves, or a shared task never shows up for the second person, run `0010`.
+If #20 still says 5, run `0010` (it lifts free studios that are still on the old default).
 
 ---
 
@@ -310,6 +316,7 @@ backs look broken rather than erroring:
 | `0007_join_link_and_requests.sql` | the common join link + approval inbox | **Settings → Join link** errors |
 | `0008_availability_default.sql` | the weekly default | **My usual week** errors |
 | `0009_join_request_details.sql` | admins can see *who* asked; `my_join_requests()` | the inbox says "No name given", and the join page cannot tell a waiting requester apart from a new one |
+| `0010_multi_assign_tasks.sql` | `task_assignees` (a task can be shared), visibility for everyone on it, 10-seat free plan | a shared task is only visible to its lead, and the free plan stays at 5 seats |
 
 The `hours` column on `availability` is still present on purpose: `0006` keeps
 it in sync from `states` so older read paths stay correct. It can be dropped
@@ -378,6 +385,14 @@ the `vercel.json` change did not reach the deployment. Redeploy and check again.
   instead of appearing frozen.
 - `supabase/migrations/0004_performance.sql` adds the indexes the queries need and makes
   Postgres evaluate `auth.uid()` once per query instead of once per row.
+- `getStore()` is memoised per request too: every page used to build a fresh Supabase client
+  (and re-read the auth cookie) on each of its four or five queries.
+- The middleware only resolves the session on routes that read it (`/app`, `/onboarding`,
+  `/auth`, `/invite`, `/join`, `/login`, `/signup`, `/`). Public pages and 404s no longer
+  pay for a Supabase round trip.
+- The client bundle ships compressed, without browser source maps, and `/app/loading.tsx`
+  draws the dashboard's actual shape rather than a generic stack — a refresh now shows the
+  page skeleton immediately instead of a blank tab.
 
 ### If it still feels slow
 

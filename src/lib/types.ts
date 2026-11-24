@@ -56,7 +56,17 @@ export interface Task {
   title: string;
   client: string;
   description: string | null;
+  /**
+   * The lead — `assigneeIds[0]`, kept on the row since the original schema has
+   * an `assignee_id` column (and RLS policies reference it).
+   */
   assigneeId: string | null;
+  /**
+   * Everyone on the task, in the order they were picked. A task can be shared:
+   * one client job, two designers. Empty/undefined on rows written before
+   * multi-assign; use `assigneesOf()` rather than reading this directly.
+   */
+  assigneeIds?: string[];
   estHours: number;
   progress: number;
   status: TaskStatus;
@@ -188,11 +198,16 @@ export const PLANS: Record<
 > = {
   free: {
     label: "Free",
-    seats: 5,
+    /*
+     * 10 while the product is still being built out. Plans and payment are a
+     * later phase; until then the free tier should not be the thing that stops
+     * a studio from trying the app with its whole crew.
+     */
+    seats: 10,
     priceMonthly: 0,
     blurb: "Kick the tyres with a small crew.",
     features: [
-      "Up to 5 seats",
+      "Up to 10 seats",
       "Unlimited client tasks",
       "Weekly workload dashboard",
       "14-day availability calendar",
@@ -236,4 +251,14 @@ export const ADMIN_ROLES: OrgRole[] = ["owner", "admin"];
 
 export function isAdminRole(role: OrgRole): boolean {
   return role === "owner" || role === "admin";
+}
+
+/**
+ * Everyone on a task. Falls back to the lead so rows written before
+ * multi-assign — and any code path that only sets `assigneeId` — still work.
+ */
+export function assigneesOf(task: Pick<Task, "assigneeId" | "assigneeIds">): string[] {
+  const list = (task.assigneeIds ?? []).filter(Boolean);
+  if (list.length) return list;
+  return task.assigneeId ? [task.assigneeId] : [];
 }

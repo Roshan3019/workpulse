@@ -11,7 +11,7 @@ import { getStore } from "@/lib/data";
 import { orgMembers } from "@/lib/data/request-cache";
 import { countdownLabel, dueDateOf, dueLabel, nextDatesIn } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
-import { isAdminRole } from "@/lib/types";
+import { assigneesOf, isAdminRole } from "@/lib/types";
 import { foldWeeklyDefaults, hoursFromStates } from "@/lib/availability";
 
 export const metadata = { title: "Dashboard" };
@@ -164,14 +164,21 @@ export default async function DashboardPage({
         ) : (
           <ul className="divide-y divide-[#efece6]">
             {upcoming.map((task) => {
-              const assignee = members.find((m) => m.userId === task.assigneeId);
+              /* Shared tasks list everyone on them, not just the lead. */
+              const assigned = assigneesOf(task)
+                .map((id) => members.find((m) => m.userId === id))
+                .filter(Boolean);
               const overdue = dueDateOf(task.deadline!, task.dueTime).getTime() < Date.now();
               return (
                 <li key={task.id} className="flex flex-wrap items-center gap-2 py-3 text-[13.5px]">
                   <span className="font-bold">{task.title}</span>
                   <span className="text-muted">· {task.client}</span>
                   <span className="ml-auto flex items-center gap-2">
-                    <span className="text-muted">{assignee?.profile.fullName ?? "Unassigned"}</span>
+                    <span className="text-muted">
+                      {assigned.length
+                        ? assigned.map((m) => m!.profile.fullName ?? "Unnamed").join(", ")
+                        : "Unassigned"}
+                    </span>
                     <span className={`pill ${STATUS_TONE[task.status]}`}>{task.status.replace("_", " ")}</span>
                     <span className={`pill ${overdue ? "pill-red" : "pill-grey"}`}>
                       {dueLabel(task.deadline!, task.dueTime)} · {countdownLabel(task.deadline!, task.dueTime)}
