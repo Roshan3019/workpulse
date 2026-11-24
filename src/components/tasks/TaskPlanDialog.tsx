@@ -370,8 +370,15 @@ export function TaskPlanDialog({
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between">
             <span className="label">Hours</span>
+            {/*
+              The label counts how many hours are covered, and the effort beside
+              it is how much work is booked into them. When they differ that is
+              the interesting number ("4h planned · 2h 30m of work" is a part-day),
+              so they are labelled rather than left as two bare numbers.
+            */}
             <span className="text-[12px] font-medium text-muted tabular-nums">
-              {totalHours}h planned{totalMinutes ? ` · ${minutesLabel(totalMinutes)} of work` : ""}
+              {totalHours}h planned
+              {totalMinutes ? ` · ${minutesLabel(totalMinutes)} of work` : ""}
             </span>
           </div>
           <div className="grid grid-cols-12 gap-[3px]">

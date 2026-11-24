@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Avatar, EmptyState, Section } from "@/components/ui";
 import { dayLabel, hourLabel, shortDate, weekdayOf } from "@/lib/dates";
 import { WORK_FIRST_HOUR, WORK_HOURS, dayStates } from "@/lib/availability";
-import { distinctNames, firstName } from "@/lib/format";
+import { displayName } from "@/lib/format";
 import { minutesLabel, type DayBlock } from "@/lib/plans";
 import type { AvailabilityStates, Member, PlannedBlock } from "@/lib/types";
 
@@ -72,14 +72,8 @@ export function TeamSlotGrid({
   today,
   title = "Team slots",
   current,
-  namePool,
 }: {
   members: Member[];
-  /**
-   * Everyone the filter could hide — used only to decide whether a name in this
-   * grid is ambiguous. Defaults to the rows themselves.
-   */
-  namePool?: Member[];
   availability: Record<string, AvailabilityStates>;
   /**
    * Every planned block for the visible days. The grid lays them over the
@@ -143,8 +137,6 @@ export function TeamSlotGrid({
     }
     return { member, dayStatesRaw, blocks, hourBlock, counts };
   });
-
-  const names = distinctNames(namePool ?? members);
 
   const freeAt = (hour: number) =>
     rows.filter(({ dayStatesRaw, hourBlock }) => !hourBlock.has(hour) && dayStatesRaw[hour] === "free").length;
@@ -285,14 +277,8 @@ export function TeamSlotGrid({
             {/* one row per teammate */}
             <ul className="divide-y divide-line border-t border-line">
               {rows.map(({ member, dayStatesRaw, hourBlock, counts }) => {
-                /*
-                 * Two teammates can share a display name. `names` adds the
-                 * email only where it is needed, so "Roshan Patel" twice stops
-                 * looking like one row rendered twice.
-                 */
-                /* NB: `shown` is the column-visibility helper above — hence `label`. */
-                const label = names.get(member.userId);
-                const name = label?.name ?? firstName(member.profile.fullName, member.profile.email);
+                /* Just the name — the client asked for no emails on the dashboard. */
+                const name = displayName(member.profile.fullName);
                 return (
                   <li key={member.userId} className="flex items-center py-1.5">
                     <div className="flex w-[88px] shrink-0 items-center gap-1.5 pr-1.5 sm:w-[132px] sm:gap-2 sm:pr-2">
@@ -303,14 +289,9 @@ export function TeamSlotGrid({
                         src={member.profile.avatarUrl}
                         size={22}
                       />
-                      <span
-                        className="min-w-0 truncate text-[12.5px] font-semibold leading-tight text-ink"
-                        title={label?.hint ? `${label.name} · ${member.profile.email}` : name}
-                      >
+                      {/* Name only, on one line — no email, no handle. */}
+                      <span className="min-w-0 truncate text-[12.5px] font-semibold leading-tight text-ink">
                         {name}
-                        {label?.hint ? (
-                          <span className="block truncate text-[10px] font-medium text-faint">{label.hint}</span>
-                        ) : null}
                       </span>
                     </div>
 
@@ -369,10 +350,18 @@ export function TeamSlotGrid({
                              * is true; on a phone every block answers on hover/tap.
                              */
                             <span
-                              className="pointer-events-none absolute inset-y-0 left-0 z-10 hidden items-center gap-1.5 pl-1.5 lg:flex"
+                              className="pointer-events-none absolute inset-y-0 left-0 z-10 hidden items-center justify-center gap-1.5 px-1.5 lg:flex"
                               style={{ width: `calc(${hit!.block.endHour - hit!.block.startHour} * 100% - 6px)` }}
                             >
-                              <span className="truncate text-[10px] leading-none font-semibold text-white">
+                              {/*
+                                Centred in the bar, not pinned to its left edge.
+                                A 12-hour block is ~530px wide and the label sat in
+                                the first 44px of it, which read as text left over
+                                from the first cell. Centring means the name sits in
+                                the middle of the block at any width; `truncate` only
+                                bites once the block is too short for the text.
+                              */}
+                              <span className="min-w-0 truncate text-center text-[10px] leading-none font-semibold text-white">
                                 {hit!.block.label}
                               </span>
                               <span className="shrink-0 text-[9.5px] leading-none font-medium text-white/75 tabular-nums">

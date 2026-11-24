@@ -20,8 +20,10 @@ number of the fixes in this area were one screen disagreeing with another.
 
 ## What the grid draws
 
-- A block of **3 hours or more** prints the task's name once, across the whole
-  bar (from `lg`, where all twelve columns are visible) with its effort after it.
+- A block of **3 hours or more** prints the task's name once, **centred** across
+  the whole bar (from `lg`, where all twelve columns are visible) with its effort
+  after it. Pinning it to the left edge made a long block look like it still had
+  text left over from its first cell.
 - A **shorter block** prints nothing on the bar. It answers on hover, on
   keyboard focus and on tap. A name squeezed into a 44px cell was unreadable and
   "Landi…" was worse.
@@ -29,6 +31,18 @@ number of the fixes in this area were one screen disagreeing with another.
   the member had marked busy is distinguishable from one they had left free.
 - The row total is **free hours only**; planned and busy hours are the bars
   themselves, and the sentence under the grid counts them in words.
+
+## Names, not email addresses
+
+The dashboard shows a person's **name and nothing else** — no address under it, no
+handle beside it, and no email used as a fallback when a name is missing (that
+reads "Unnamed"). `displayName()` in `src/lib/format.ts` is the only way a member
+is printed, and `tests/format.test.cjs` fails if a dashboard component reaches for
+`profile.email`.
+
+One screen keeps the address: **People**, the roster where an admin promotes or
+removes someone. That is an identity decision, so the identity stays unambiguous
+there.
 
 ## Where the rules live
 

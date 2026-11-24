@@ -7,6 +7,7 @@ import { nextDatesIn, shortDate } from "@/lib/dates";
 import { getUserTimeZone, requireSession } from "@/lib/session";
 import { isAdminRole, type AvailabilityStates } from "@/lib/types";
 import { applyWeeklyDefault, countStates } from "@/lib/availability";
+import { displayName } from "@/lib/format";
 import { WeeklyDefaultEditor } from "@/components/availability/WeeklyDefaultEditor";
 
 export const metadata = { title: "Availability" };
@@ -83,7 +84,7 @@ export default async function AvailabilityPage({
           </div>
         ) : (
           <Section
-            title={selected.profile.fullName ?? selected.profile.email}
+            title={displayName(selected.profile.fullName)}
             subtitle={`${freeThisWeek}h free over the next 7 days`}
             action={
               <div className="flex shrink-0 items-center gap-2">

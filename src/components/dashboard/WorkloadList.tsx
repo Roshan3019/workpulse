@@ -1,4 +1,4 @@
-import { distinctNames } from "@/lib/format";
+import { displayName } from "@/lib/format";
 import { Avatar, Badge, EmptyState, ProgressBar, Section } from "@/components/ui";
 import { UTILISATION_LABEL, UTILISATION_TONE, computeWorkload } from "@/lib/workload";
 import type { Member, Task } from "@/lib/types";
@@ -12,7 +12,6 @@ const FILL_TONE = {
 
 export function WorkloadList({ members, tasks }: { members: Member[]; tasks: Task[] }) {
   const rows = computeWorkload(members, tasks);
-  const names = distinctNames(members);
 
   return (
     <Section
@@ -39,16 +38,15 @@ export function WorkloadList({ members, tasks }: { members: Member[]; tasks: Tas
                     email={row.member.profile.email}
                     src={row.member.profile.avatarUrl}
                   />
+                  {/*
+                    A name, and nothing else. The email that used to sit under it
+                    is internal detail on a dashboard the admin reads all day —
+                    and it made every row two lines of text to scan.
+                  */}
                   <div className="min-w-0">
-                    <div className="truncate text-[14.5px] font-bold" title={names.get(row.member.userId)?.hint ? row.member.profile.email : undefined}>
-                      {names.get(row.member.userId)?.name ?? "Unnamed"}
-                      {names.get(row.member.userId)?.hint ? (
-                        <span className="ml-1.5 text-[11px] font-medium text-faint">
-                          {names.get(row.member.userId)?.hint}
-                        </span>
-                      ) : null}
+                    <div className="truncate text-[14.5px] font-bold">
+                      {displayName(row.member.profile.fullName)}
                     </div>
-                    <div className="truncate text-[12px] text-muted">{row.member.profile.email}</div>
                   </div>
                 </div>
 

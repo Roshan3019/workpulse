@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Avatar, EmptyState, Section } from "@/components/ui";
 import { dayLabel, shortDate, weekdayOf, fromISODate, todayISO } from "@/lib/dates";
-import { distinctNames, firstName } from "@/lib/format";
+import { displayName } from "@/lib/format";
 import { computeFreeSlots, teamTotals } from "@/lib/workload";
 import type { AvailabilityMap, Member } from "@/lib/types";
 
@@ -24,7 +24,6 @@ export function OverallSlots({
   const rows = computeFreeSlots(members, availability, week);
   const { total, most, unset } = teamTotals(rows);
   const today = todayISO();
-  const names = distinctNames(members);
 
   return (
     <Section
@@ -50,7 +49,7 @@ export function OverallSlots({
             </span>
             {most && most.total > 0 ? (
               <span>
-                Most free: <b className="text-ink-2">{firstName(most.member.profile.fullName, most.member.profile.email)}</b>{" "}
+                Most free: <b className="text-ink-2">{displayName(most.member.profile.fullName)}</b>{" "}
                 ({most.total}h)
               </span>
             ) : null}
@@ -101,12 +100,10 @@ export function OverallSlots({
                           src={row.member.profile.avatarUrl}
                           size={28}
                         />
+                        {/* Name only — no email line on the dashboard. */}
                         <div className="min-w-0">
                           <div className="truncate text-[13px] font-bold">
-                            {names.get(row.member.userId)?.name ?? row.member.profile.email}
-                          </div>
-                          <div className="truncate text-[10.5px] text-faint">
-                            {names.get(row.member.userId)?.hint ?? row.member.profile.email}
+                            {displayName(row.member.profile.fullName)}
                           </div>
                         </div>
                       </div>
@@ -137,8 +134,9 @@ export function OverallSlots({
           <div className="mt-4 space-y-2.5">
             {rows.map((row) => (
               <div key={row.member.id} className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                <span className="w-[110px] shrink-0 truncate text-[12.5px] font-medium text-ink-2">
-                  {firstName(row.member.profile.fullName, row.member.profile.email)}
+                {/* Full names now, not first names, so the gutter is a little wider. */}
+                <span className="w-[132px] shrink-0 truncate text-[12.5px] font-medium text-ink-2">
+                  {displayName(row.member.profile.fullName)}
                 </span>
                 {row.rangesByDay.every((d) => !d.hours.length) ? (
                   <span className="text-[12px] text-faint">No free hours marked this week</span>

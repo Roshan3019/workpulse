@@ -16,6 +16,7 @@ import {
   setJoinLinkEnabledAction,
   rotateJoinLinkAction,
 } from "@/lib/actions/joining";
+import { displayName } from "@/lib/format";
 import {
   PLANS,
   type Invite,
@@ -320,7 +321,7 @@ export function TransferOwnershipPanel({ members, isOwner }: { members: Member[]
         <select id="newOwner" value={target} onChange={(event) => setTarget(event.target.value)}>
           {candidates.map((m) => (
             <option key={m.userId} value={m.userId}>
-              {m.profile.fullName ?? m.profile.email} ({m.role})
+              {displayName(m.profile.fullName)} ({m.role})
             </option>
           ))}
         </select>

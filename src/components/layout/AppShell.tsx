@@ -233,7 +233,10 @@ function UserRow({ session }: { session: Session }) {
         size={38}
       />
       <div className="min-w-0 flex-1 text-right lg:text-left">
-        <div className="truncate text-[13.5px] font-bold">{session.user.fullName ?? session.user.email}</div>
+        {/* The person's own name in their own menu — never their address. */}
+        <div className="truncate text-[13.5px] font-bold">
+          {session.user.fullName?.trim() || "Your account"}
+        </div>
         <div className="text-[10.5px] font-medium tracking-[.1em] text-brand uppercase">
           {ROLE_LABEL[session.membership.role]}
         </div>

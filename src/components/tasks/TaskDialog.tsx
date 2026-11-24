@@ -7,6 +7,7 @@ import { saveTaskAction, type ActionResult } from "@/lib/actions/tasks";
 import { assigneesOf, type Member, type Task, type Team } from "@/lib/types";
 import { resolveTaskTeam, teamsForUser, STUDIO_WIDE } from "@/lib/task-teams";
 import { addDays, countdownLabel, todayISO, TIME_PRESETS } from "@/lib/dates";
+import { displayName } from "@/lib/format";
 
 const initial: ActionResult = {};
 
@@ -177,7 +178,7 @@ export function TaskDialog({
                 {assigneeIds.map((id, index) => {
                   const m = members.find((x) => x.userId === id);
                   if (!m) return null;
-                  const name = m.profile.fullName ?? m.profile.email;
+                  const name = displayName(m.profile.fullName);
                   return (
                     <span
                       key={id}
@@ -207,7 +208,7 @@ export function TaskDialog({
                 .filter((m) => m.role === "member" || assigneeIds.includes(m.userId))
                 .map((m) => {
                   const checked = assigneeIds.includes(m.userId);
-                  const name = m.profile.fullName ?? m.profile.email;
+                  const name = displayName(m.profile.fullName);
                   const team = teamsForUser(teams, m.userId)[0];
                   return (
                     <label

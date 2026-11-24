@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Avatar, Badge } from "@/components/ui";
 import { Alert } from "@/components/ui/Modal";
 import { changeCapacityAction, changeRoleAction, removeMemberAction } from "@/lib/actions/team";
-import { distinctNames } from "@/lib/format";
+import { displayName } from "@/lib/format";
 import { ROLE_LABEL, ROLE_TONE, type Member, type OrgRole } from "@/lib/types";
 
 export function TeamGrid({
@@ -24,8 +24,11 @@ export function TeamGrid({
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
-  /* Two "Roshan Patel" rows are a real thing here; the email tells them apart. */
-  const names = distinctNames(members);
+  /*
+   * The roster is the one screen that keeps the email: it is where an admin
+   * decides who to promote or remove, so the identity has to be unambiguous.
+   * Everywhere else in the app a member is just their name.
+   */
 
   function run(id: string, fn: () => Promise<{ error?: string }>) {
     setBusyId(id);
@@ -65,9 +68,7 @@ export function TeamGrid({
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="truncate text-[16px] font-semibold" title={names.get(member.userId)?.hint ? member.profile.email : undefined}>
-                      {member.profile.fullName ?? "Unnamed"}
-                    </h3>
+                    <h3 className="truncate text-[16px] font-semibold">{displayName(member.profile.fullName)}</h3>
                     {isSelf ? <Badge tone="indigo">You</Badge> : null}
                   </div>
                   <p className="truncate text-[12.5px] text-muted">{member.profile.email}</p>
@@ -98,7 +99,7 @@ export function TeamGrid({
                         max={80}
                         defaultValue={member.capacity}
                         disabled={pending || currentRole === "member"}
-                        aria-label={`Weekly capacity for ${member.profile.fullName ?? member.profile.email}`}
+                        aria-label={`Weekly capacity for ${displayName(member.profile.fullName)}`}
                         onBlur={(event) => {
                           const value = event.target.value;
                           if (Number(value) === member.capacity) return;

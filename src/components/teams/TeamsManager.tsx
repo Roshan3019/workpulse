@@ -7,6 +7,7 @@ import { Avatar } from "@/components/ui";
 import { Modal, Alert } from "@/components/ui/Modal";
 import { deleteTeamAction, saveTeamAction } from "@/lib/actions/tasks";
 import type { Member, Team } from "@/lib/types";
+import { displayName } from "@/lib/format";
 
 /**
  * Team management. A studio can run several teams; people can be on more than
@@ -194,7 +195,7 @@ export function TeamsManager({ teams, members }: { teams: Team[]; members: Membe
                       size={22}
                     />
                     <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
-                      {m.profile.fullName ?? m.profile.email}
+                      {displayName(m.profile.fullName)}
                     </span>
                     <span className="shrink-0 text-[11.5px] text-faint">{m.capacity}h/wk</span>
                   </label>

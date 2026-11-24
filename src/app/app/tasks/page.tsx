@@ -7,6 +7,7 @@ import { orgMembers } from "@/lib/data/request-cache";
 import { countdownLabel, dueDateOf, dueLabel } from "@/lib/dates";
 import { requireSession } from "@/lib/session";
 import { STATUS_LABEL, assigneesOf, isAdminRole, type TaskPriority } from "@/lib/types";
+import { displayName } from "@/lib/format";
 
 export const metadata = { title: "All tasks" };
 export const dynamic = "force-dynamic";
@@ -100,7 +101,7 @@ export default async function TasksPage({
             .filter((m) => m.role === "member")
             .map((m) => (
               <option key={m.userId} value={m.userId}>
-                {m.profile.fullName ?? m.profile.email}
+                {displayName(m.profile.fullName)}
               </option>
             ))}
         </select>

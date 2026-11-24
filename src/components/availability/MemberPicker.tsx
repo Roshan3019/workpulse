@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { distinctNames } from "@/lib/format";
+import { displayName } from "@/lib/format";
 import type { Member } from "@/lib/types";
 
 /**
@@ -13,8 +13,6 @@ import type { Member } from "@/lib/types";
  */
 export function MemberPicker({ members, selected }: { members: Member[]; selected: string }) {
   const router = useRouter();
-  /* Emails appear only where two people share a display name. */
-  const names = distinctNames(members);
 
   return (
     <label className="relative block w-full sm:w-auto">
@@ -32,10 +30,7 @@ export function MemberPicker({ members, selected }: { members: Member[]; selecte
       >
         {members.map((m) => (
           <option key={m.userId} value={m.userId}>
-            {(() => {
-              const shown = names.get(m.userId);
-              return shown?.hint ? `${shown.name} (${shown.hint})` : (shown?.name ?? m.profile.email);
-            })()}
+            {displayName(m.profile.fullName)}
           </option>
         ))}
       </select>
