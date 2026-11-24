@@ -72,6 +72,26 @@ const taskFromRow = (r: Row): Task => ({
   createdAt: r.created_at,
 });
 
+/** `42P01` = undefined_table; `PGRST205` = table not in the schema cache. */
+function isMissingTable(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === "42P01" || error.code === "PGRST205") return true;
+  return /relation .*task_assignees.* does not exist/i.test(error.message ?? "");
+}
+
+/**
+ * Is `error` about the `task_assignees` embed specifically? (`PGRST200`,
+ * `PGRST201`, `PGRST108` … all mean "that relationship is not there".)
+ *
+ * Before 0010 the table does not exist, so the task list has to keep working —
+ * without multi-assign, but without a 500 on every page.
+ */
+function isAssigneeEmbedError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (!/^PGRST/.test(error.code ?? "")) return false;
+  return /task_assignees/i.test(error.message ?? "");
+}
+
 /**
  * One canonical assignee list. The lead column is always first, and the join
  * rows are merged in after it without duplicates.
@@ -244,32 +264,65 @@ export class SupabaseStore implements DataStore {
 
   async listTasks(orgId: string, filters: TaskFilters = {}): Promise<Task[]> {
     const sb = await this.sb();
-    let q = sb
-      .from("tasks")
-      .select("*, task_assignees(user_id, position)")
-      .eq("org_id", orgId);
+
     /*
-     * A person filter has to match *any* assignee, not just the lead. Asking
-     * the database for it twice — once against the join table, once against
-     * `assignee_id` for rows written before 0009 — then merging would cost two
-     * round trips; instead the join rows are filtered server-side and the lead
-     * is checked in memory below (the row set is one org's tasks).
+     * Who is "assigned to me"? Either the lead (`tasks.assignee_id`) or anyone
+     * in `task_assignees`.
+     *
+     * PostgREST cannot express that in one filter: putting an embedded table's
+     * column inside an `or()` on the parent —
+     * `or=(assignee_id.eq.X,task_assignees.user_id.eq.X)` — is a logic-tree
+     * parse error, which is exactly what broke /app/my-tasks. The two
+     * conditions are two indexed queries, merged by id.
      */
-    if (filters.onlyForUser || filters.assigneeId) {
-      const person = (filters.onlyForUser ?? filters.assigneeId)!;
+    const person = filters.onlyForUser ?? filters.assigneeId ?? null;
+    let ids: string[] | null = null;
+    if (person) {
+      const [led, joined] = await Promise.all([
+        sb.from("tasks").select("id").eq("org_id", orgId).eq("assignee_id", person),
+        sb.from("task_assignees").select("task_id").eq("user_id", person),
+      ]);
+      fail(led.error, "load tasks");
       /*
-       * One query, not two: the lead column and the join table are checked in
-       * the same filter, so "my tasks" costs one round trip whether the task
-       * was written before or after multi-assign existed.
+       * A project that has not run 0010 yet has no `task_assignees` at all.
+       * That is not a failure: fall back to the lead-only list below.
        */
-      q = q.or(`assignee_id.eq.${person},task_assignees.user_id.eq.${person}`);
+      const joinedRows = isMissingTable(joined.error) ? [] : ((joined.data ?? []) as Row[]);
+      if (!isMissingTable(joined.error)) fail(joined.error, "load assignments");
+      ids = [
+        ...new Set([
+          ...((led.data ?? []) as Row[]).map((r) => r.id as string),
+          ...joinedRows.map((r) => r.task_id as string),
+        ]),
+      ];
+      if (!ids.length) return [];
     }
-    if (filters.teamId) q = q.eq("team_id", filters.teamId);
-    if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
-    if (filters.search) q = q.or(`title.ilike.%${filters.search}%,client.ilike.%${filters.search}%`);
-    const { data, error } = await q;
-    fail(error, "load tasks");
-    return ((data ?? []) as Row[]).map(taskFromRow);
+
+    const run = async (withAssignees: boolean) => {
+      let q = sb
+        .from("tasks")
+        .select(withAssignees ? "*, task_assignees(user_id, position)" : "*")
+        .eq("org_id", orgId);
+      if (ids) q = q.in("id", ids);
+      if (filters.teamId) q = q.eq("team_id", filters.teamId);
+      if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
+      if (filters.search) q = q.or(`title.ilike.%${filters.search}%,client.ilike.%${filters.search}%`);
+      return q;
+    };
+
+    const first = await run(true);
+    if (isAssigneeEmbedError(first.error)) {
+      /*
+       * 0010 not applied here: read the tasks without the embed. Every task
+       * still shows its lead, so the app works — it just cannot show a second
+       * person until the migration runs. Better than a 500 on every page.
+       */
+      const fallback = await run(false);
+      fail(fallback.error, "load tasks");
+      return ((fallback.data ?? []) as Row[]).map(taskFromRow);
+    }
+    fail(first.error, "load tasks");
+    return ((first.data ?? []) as Row[]).map(taskFromRow);
   }
 
   async createTask(
@@ -317,10 +370,12 @@ export class SupabaseStore implements DataStore {
     const clean = [...new Set(userIds.filter(Boolean))];
     if (!clean.length) return;
     const { error: clearError } = await sb.from("task_assignees").delete().eq("task_id", taskId);
+    if (isMissingTable(clearError)) return; // 0010 not applied: lead-only rows are fine
     fail(clearError, "clear assignments");
     const { error } = await sb.from("task_assignees").insert(
       clean.map((userId, position) => ({ org_id: orgId, task_id: taskId, user_id: userId, position })),
     );
+    if (isMissingTable(error)) return;
     fail(error, "save assignments");
   }
 

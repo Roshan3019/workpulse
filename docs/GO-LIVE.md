@@ -305,6 +305,20 @@ Apply the files in `supabase/migrations/` **in numeric order**. Each one is
 idempotent, so a re-run is safe, but skipping one will make the feature it
 backs look broken rather than erroring:
 
+> **"The database is missing an update" / a page shows a Try-again card.**
+> That card appears when the app asks for a column or table the database does
+> not have yet — almost always a migration that has not been run. Open
+> **Supabase → SQL Editor**, paste the newest file from
+> `supabase/migrations/` (highest number), run it, and reload. `0010` is the
+> current last one; it is what introduces multi-person task assignment.
+>
+> You can confirm which ones have run: **Supabase → Database → Migrations**
+> lists them by name (`teams`, `availability_states`, `join_link_and_requests`,
+> `availability_default`, `join_request_details`, `multi_assign_tasks`). Note
+> that migrations applied *before* 2026-11-23 were executed through the SQL
+> editor rather than `supabase db push`, so they may not appear in that list
+> even though their tables exist — if in doubt, re-running a file is safe.
+
 | File | Enables | If it's missing |
 |---|---|---|
 | `0001_init.sql` | the schema itself | nothing works |
